@@ -353,7 +353,7 @@ main() {
         install_python
     fi
     
-    # 克隆项目(如果不存在)
+    # 克隆或更新项目
     if [ ! -d "/opt/faka" ]; then
         echo "📥 下载项目代码..."
         cd /opt
@@ -361,6 +361,9 @@ main() {
         echo ""
     else
         echo "📂 项目已存在: /opt/faka"
+        echo "📥 拉取最新代码..."
+        cd /opt/faka
+        sudo git pull origin main || sudo git pull origin master
         echo ""
     fi
     

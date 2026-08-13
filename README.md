@@ -9,10 +9,19 @@
 ### 🐳 Ubuntu Docker一键部署 (推荐)
 
 ```bash
-# 1. 下载代码
+# 方式1: 一行命令(首次部署或更新)
+cd /opt && ([ -d "faka" ] && cd faka && sudo git pull || sudo git clone https://github.com/wp13461544040/faka.git && cd faka) && chmod +x deploy.sh && sudo bash deploy.sh
+```
+
+或分步执行:
+```bash
+# 1. 下载或更新代码
 cd /opt
-sudo git clone https://github.com/wp13461544040/faka.git
-cd faka
+if [ -d "faka" ]; then
+    cd faka && sudo git pull
+else
+    sudo git clone https://github.com/wp13461544040/faka.git && cd faka
+fi
 
 # 2. 一键部署
 chmod +x deploy.sh
