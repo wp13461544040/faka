@@ -182,7 +182,9 @@
                     html += '</tbody></table>';
                     
                     document.getElementById('cardsTable').innerHTML = html;
-                    document.getElementById('cardsModal').classList.remove('hidden');
+                    const modal = document.getElementById('cardsModal');
+                    modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
                 }
             } catch (error) {
                 alert('加载失败: ' + error.message);
@@ -190,7 +192,9 @@
         }
         
         function closeModal() {
-            document.getElementById('cardsModal').classList.add('hidden');
+            const modal = document.getElementById('cardsModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
         }
         
         function showSettings() {
