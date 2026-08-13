@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Faka发卡系统 - 一键部署脚本
+# Faka发卡系统 - 一键部署脚本 (支持数据库迁移)
 # 支持Docker和直接部署两种方式
 
 set -e
@@ -116,6 +116,72 @@ install_python() {
     echo ""
 }
 
+# 数据库迁移
+migrate_database() {
+    echo "💾 执行数据库迁移..."
+    
+    if [ "$DEPLOY_METHOD" = "docker" ]; then
+        # Docker环境下迁移
+        sudo docker-compose exec -T faka python3 - <<'PYEOF'
+import sqlite3
+import os
+
+db_path = 'instance/faka.db'
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+# 检查字段是否存在
+cursor.execute("PRAGMA table_info(card)")
+columns = [col[1] for col in cursor.fetchall()]
+
+if 'is_listed' not in columns:
+    print("添加 is_listed 字段...")
+    cursor.execute("ALTER TABLE card ADD COLUMN is_listed INTEGER DEFAULT 1")
+    conn.commit()
+    print("✅ 字段添加成功!")
+else:
+    print("✅ is_listed 字段已存在,无需迁移")
+
+conn.close()
+PYEOF
+    else
+        # 直接部署环境下迁移
+        cd /opt/faka
+        source venv/bin/activate
+        python3 - <<'PYEOF'
+import sqlite3
+import os
+
+db_path = 'instance/faka.db'
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+# 检查字段是否存在
+cursor.execute("PRAGMA table_info(card)")
+columns = [col[1] for col in cursor.fetchall()]
+
+if 'is_listed' not in columns:
+    print("添加 is_listed 字段...")
+    cursor.execute("ALTER TABLE card ADD COLUMN is_listed INTEGER DEFAULT 1")
+    conn.commit()
+    print("✅ 字段添加成功!")
+else:
+    print("✅ is_listed 字段已存在,无需迁移")
+
+conn.close()
+PYEOF
+    fi
+    
+    echo "✅ 数据库迁移完成"
+    echo ""
+}
+
 # Docker部署
 deploy_docker() {
     echo "🐳 开始Docker部署..."
@@ -129,6 +195,9 @@ deploy_docker() {
     echo ""
     echo "⏳ 等待服务启动..."
     sleep 10
+    
+    # 执行数据库迁移
+    migrate_database
     
     # 检查状态
     sudo docker-compose ps
@@ -153,8 +222,12 @@ deploy_systemd() {
     echo "2️⃣ 安装Python依赖..."
     pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
     
+    # 执行数据库迁移
+    echo "3️⃣ 执行数据库迁移..."
+    migrate_database
+    
     # 创建systemd服务
-    echo "3️⃣ 创建系统服务..."
+    echo "4️⃣ 创建系统服务..."
     sudo tee /etc/systemd/system/faka.service <<-'EOF'
 [Unit]
 Description=Faka Card System
@@ -174,7 +247,7 @@ WantedBy=multi-user.target
 EOF
     
     # 启动服务
-    echo "4️⃣ 启动服务..."
+    echo "5️⃣ 启动服务..."
     sudo systemctl daemon-reload
     sudo systemctl start faka
     sudo systemctl enable faka
@@ -234,6 +307,11 @@ show_result() {
     echo "🔐 首次访问:"
     echo "   1. 访问管理后台创建管理员账号"
     echo "   2. 登录后台开始使用"
+    echo ""
+    echo "✨ 新功能:"
+    echo "   - 卡密上架/下架管理"
+    echo "   - 批量操作支持"
+    echo "   - 状态筛选功能"
     echo ""
     echo "📊 常用命令:"
     

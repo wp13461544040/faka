@@ -1,29 +1,36 @@
 # 🎫 Faka - 简易发卡系统
 
-一个轻量级的卡密发放与管理系统,支持文件上传、JSON数据导入、批量生成卡密、自定义复制模板等功能。
+一个轻量级的卡密发放与管理系统,支持文件上传、JSON数据导入、批量生成卡密、**卡密上架/下架管理**等功能。
 
 [![Docker Build](https://github.com/wp13461544040/faka/actions/workflows/docker-build.yml/badge.svg)](https://github.com/wp13461544040/faka/actions)
 
 ## ⚡ 快速开始
 
-### 一键部署到Ubuntu服务器
+### 🐳 Ubuntu Docker一键部署 (推荐)
 
 ```bash
-curl -fsSL https://get.docker.com | sh && \
-sudo apt install docker-compose git -y && \
-cd /opt && \
-sudo git clone https://github.com/wp13461544040/faka.git && \
-cd faka && \
-sudo docker-compose up -d && \
-echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
+# 1. 下载代码
+cd /opt
+sudo git clone https://github.com/wp13461544040/faka.git
+cd faka
+
+# 2. 一键部署
+chmod +x deploy.sh
+sudo bash deploy.sh
+# 选择 1) Docker部署
+
+# 就这么简单!脚本会自动安装Docker、执行数据库迁移、启动服务
+```
+
+### 🪟 Windows本地测试
+
+```cmd
+# 双击运行
+start.bat
 ```
 
 **访问地址**: `http://你的服务器IP:3019`  
 **管理后台**: `http://你的服务器IP:3019/july` (隐藏入口)
-
-📖 **详细文档**:
-- [⚡ 快速开始指南](QUICKSTART.md) - 5分钟上手
-- [🚀 完整部署文档](DEPLOY.md) - Docker/直接部署/Nginx配置
 
 ---
 
@@ -32,9 +39,11 @@ echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
 ### 🎯 核心功能
 - 🔑 **自动生成卡密**: 格式 `XXXX-XXXX-XXXX-XXXX`,防重复
 - 📥 **灵活导入**: 支持txt文件上传、JSON数据导入
-- 📋 **批量复制**: 自定义模板,一键复制多个卡密
-- 🔍 **智能筛选**: 按使用状态筛选卡密
-- 🗑️ **便捷管理**: 删除、导出、实时统计
+- 🏪 **上架/下架管理**: 控制卡密是否可被用户兑换 (NEW!)
+- 📋 **批量操作**: 批量上架/下架、批量复制
+- 📊 **实时统计**: 总数/已使用/未使用/已上架/已下架
+- 🔍 **智能筛选**: 按使用状态、上架状态筛选
+- 🗑️ **便捷管理**: 删除、导出、自定义模板
 
 ### 🔐 安全特性
 - ✅ 首次初始化自定义管理员账号
@@ -51,16 +60,22 @@ echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
 
 ---
 
-## 📸 界面预览
+## 🆕 新功能: 卡密上架/下架管理
 
-### 用户提取页面
-简洁的卡密提取界面,输入卡密即可获取内容
+### 功能说明
+- 每个卡密都有"上架/下架"状态,默认已上架
+- **只有已上架的卡密才能被用户兑换**
+- 已下架的卡密不影响查看和删除,仅用户无法兑换
 
-### 管理后台
-- 数据统计卡片 (总数/未使用/已使用)
-- 卡密导入 (文件/JSON)
-- 卡密列表 (筛选/复制/删除)
-- 批量操作 (全选/批量复制)
+### 使用场景
+- 导入大批卡密,逐批上架销售
+- 临时下架某些卡密
+- 控制卡密发放节奏
+
+### 操作方法
+1. **单个操作**: 点击每行的"上架/下架"按钮
+2. **批量操作**: 勾选多个卡密,点击"批量上架/下架"
+3. **状态筛选**: 筛选器选择"已上架"或"已下架"
 
 ---
 
@@ -73,8 +88,9 @@ echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
 3. **导入内容**:
    - 上传txt文件 (每行一个内容)
    - 或输入JSON数组
-4. **生成卡密** (自动生成对应数量)
-5. **批量复制**发给用户
+4. **生成卡密** (自动生成对应数量,默认已上架)
+5. **管理状态**: 根据需要上架/下架卡密
+6. **批量复制**发给用户
 
 ### 用户操作
 
@@ -83,25 +99,54 @@ echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
 3. 点击"提取"
 4. 查看内容 (卡密自动标记为已使用)
 
-### 自定义复制模板
+---
 
-在管理后台"复制模板"输入框:
+## 🔄 常用命令
 
+### Docker部署
+```bash
+# 查看状态
+sudo docker-compose ps
+
+# 查看日志
+sudo docker-compose logs -f
+
+# 重启服务
+sudo docker-compose restart
+
+# 停止服务
+sudo docker-compose down
+
+# 一键更新
+cd /opt/faka
+sudo bash update.sh
 ```
-卡密：{key}\n兑换地址：http://你的域名.com\n有效期：永久
-```
 
-使用 `{key}` 占位卡密, `\n` 或 `&#10;` 表示换行
+### Systemd部署
+```bash
+# 查看状态
+sudo systemctl status faka
+
+# 查看日志
+sudo journalctl -u faka -f
+
+# 重启服务
+sudo systemctl restart faka
+
+# 一键更新
+cd /opt/faka
+sudo bash update.sh
+```
 
 ---
 
 ## 🛠️ 技术栈
 
-- **后端**: Flask 3.0
+- **后端**: Flask 3.0 + SQLAlchemy
 - **数据库**: SQLite
-- **认证**: Flask-Login
+- **认证**: Flask-Login + Bcrypt
 - **前端**: 原生HTML/CSS/JavaScript
-- **部署**: Docker + Docker Compose
+- **部署**: Docker + Docker Compose / Systemd
 
 ---
 
@@ -111,14 +156,37 @@ echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
 faka/
 ├── app.py                    # Flask后端
 ├── requirements.txt          # Python依赖
+├── deploy.sh                # 一键部署脚本
+├── update.sh                # 一键更新脚本
+├── start.bat                # Windows启动脚本
 ├── Dockerfile               # Docker镜像
 ├── docker-compose.yml       # Docker编排
-├── QUICKSTART.md            # 快速开始
-├── DEPLOY.md                # 部署文档
 ├── templates/               # HTML模板
+│   ├── index.html          # 用户提取页
+│   ├── admin.html          # 管理后台
+│   ├── login.html          # 登录页
+│   └── init.html           # 初始化页
 ├── static/                  # 静态资源
-└── .github/workflows/       # CI/CD
+│   └── style.css           # 样式
+└── instance/                # 数据目录(自动创建)
+    └── faka.db             # SQLite数据库
 ```
+
+---
+
+## 🐛 常见问题
+
+### Q: 如何修改端口?
+编辑 `app.py` 最后一行或 `docker-compose.yml` 的端口映射
+
+### Q: 如何修改管理后台路径?
+编辑 `app.py` 中的 `@app.route('/july', ...)` 改成你想要的路径
+
+### Q: 如何备份数据?
+数据库文件: `instance/faka.db`,直接复制即可
+
+### Q: 更新后功能异常?
+运行 `sudo bash update.sh` 会自动执行数据库迁移
 
 ---
 

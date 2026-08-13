@@ -55,6 +55,7 @@ class Card(db.Model):
     card_key = db.Column(db.String(32), unique=True, nullable=False)
     content = db.Column(db.Text, nullable=False)
     is_used = db.Column(db.Boolean, default=False)
+    is_listed = db.Column(db.Boolean, default=True)  # 新增:是否上架
     used_at = db.Column(db.DateTime)
     used_by_ip = db.Column(db.String(50))
 
@@ -144,12 +145,16 @@ def admin():
     total_cards = Card.query.count()
     used_cards = Card.query.filter_by(is_used=True).count()
     unused_cards = total_cards - used_cards
+    listed_cards = Card.query.filter_by(is_listed=True).count()
+    unlisted_cards = Card.query.filter_by(is_listed=False).count()
     
     return render_template('admin.html', 
                          cards=cards,
                          total_cards=total_cards,
                          used_cards=used_cards,
-                         unused_cards=unused_cards)
+                         unused_cards=unused_cards,
+                         listed_cards=listed_cards,
+                         unlisted_cards=unlisted_cards)
 
 @app.route('/api/create_batch', methods=['POST'])
 @login_required
@@ -231,6 +236,9 @@ def use_card():
     
     if not card:
         return jsonify({'success': False, 'message': '卡密不存在'}), 404
+    
+    if not card.is_listed:
+        return jsonify({'success': False, 'message': '该卡密未上架,暂不可用'}), 400
     
     if card.is_used:
         return jsonify({
@@ -343,6 +351,41 @@ def change_username():
     db.session.commit()
     
     return jsonify({'success': True, 'message': '用户名修改成功'})
+
+@app.route('/api/toggle_card_status/<int:card_id>', methods=['POST'])
+@login_required
+def toggle_card_status(card_id):
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    card = Card.query.get(card_id)
+    if not card:
+        return jsonify({'success': False, 'message': '卡密不存在'}), 404
+    
+    card.is_listed = not card.is_listed
+    db.session.commit()
+    
+    status_text = '已上架' if card.is_listed else '已下架'
+    return jsonify({'success': True, 'message': f'卡密{status_text}', 'is_listed': card.is_listed})
+
+@app.route('/api/batch_toggle_status', methods=['POST'])
+@login_required
+def batch_toggle_status():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    data = request.get_json()
+    card_ids = data.get('card_ids', [])
+    is_listed = data.get('is_listed', True)
+    
+    if not card_ids:
+        return jsonify({'success': False, 'message': '未选择卡密'}), 400
+    
+    Card.query.filter(Card.id.in_(card_ids)).update({'is_listed': is_listed}, synchronize_session=False)
+    db.session.commit()
+    
+    status_text = '上架' if is_listed else '下架'
+    return jsonify({'success': True, 'message': f'成功{status_text} {len(card_ids)} 个卡密'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3019, debug=False)

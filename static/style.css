@@ -310,6 +310,44 @@ button:active {
     font-weight: bold;
 }
 
+.status-listed {
+    color: #2196f3;
+    background: #e3f2fd;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.status-unlisted {
+    color: #ff9800;
+    background: #fff3e0;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.btn-toggle {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: #ff9800;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-toggle:hover:not([disabled]) {
+    background: #f57c00;
+}
+
+.btn-toggle[disabled] {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
 .btn-copy {
     padding: 6px 12px;
     font-size: 13px;
@@ -362,6 +400,14 @@ button:active {
 
 .stat-card.stat-used {
     border-left-color: #999;
+}
+
+.stat-card.stat-listed {
+    border-left-color: #2196f3;
+}
+
+.stat-card.stat-unlisted {
+    border-left-color: #ff9800;
 }
 
 .stat-number {

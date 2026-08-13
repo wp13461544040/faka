@@ -1,211 +1,231 @@
 #!/bin/bash
 
-# Faka发卡系统 - 自动更新脚本
-# 支持Docker和Systemd两种部署方式
+# Faka发卡系统 - 一键更新脚本
 
 set -e
 
 echo "=========================================="
-echo "   🚀 Faka发卡系统 - 自动更新脚本"
+echo "   🔄 Faka发卡系统 - 一键更新脚本"
 echo "=========================================="
 echo ""
 
-# 检测项目目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
-
-echo "📂 项目路径: $SCRIPT_DIR"
-echo ""
+# 检测部署方式
+detect_deploy_method() {
+    if [ -f "/.dockerenv" ] || [ "$(docker ps -q -f name=faka_system)" ]; then
+        DEPLOY_METHOD="docker"
+        echo "📦 检测到Docker部署"
+    elif systemctl is-active --quiet faka; then
+        DEPLOY_METHOD="systemd"
+        echo "⚙️  检测到Systemd部署"
+    else
+        echo "❌ 未检测到运行中的服务"
+        exit 1
+    fi
+    echo ""
+}
 
 # 备份数据库
 backup_database() {
     echo "💾 备份数据库..."
-    BACKUP_DIR="./backups"
-    mkdir -p "$BACKUP_DIR"
     
-    if [ -f "faka.db" ]; then
+    BACKUP_DIR="/opt/faka/backups"
+    mkdir -p $BACKUP_DIR
+    
+    if [ -f "/opt/faka/instance/faka.db" ]; then
         BACKUP_FILE="$BACKUP_DIR/faka_$(date +%Y%m%d_%H%M%S).db"
-        cp faka.db "$BACKUP_FILE"
-        echo "✅ 数据库已备份到: $BACKUP_FILE"
-    elif [ -f "data/faka.db" ]; then
-        BACKUP_FILE="$BACKUP_DIR/faka_$(date +%Y%m%d_%H%M%S).db"
-        cp data/faka.db "$BACKUP_FILE"
+        cp /opt/faka/instance/faka.db $BACKUP_FILE
         echo "✅ 数据库已备份到: $BACKUP_FILE"
     else
-        echo "⚠️  未找到数据库文件,跳过备份"
+        echo "⚠️  数据库文件不存在,跳过备份"
     fi
     echo ""
 }
 
 # 拉取最新代码
-update_code() {
+pull_code() {
     echo "📥 拉取最新代码..."
+    cd /opt/faka
     
-    # 保存本地修改(如果有)
-    if [ -n "$(git status --porcelain)" ]; then
-        echo "⚠️  检测到本地修改,正在暂存..."
-        git stash
-        STASHED=true
-    fi
+    # 保存本地修改
+    git stash
     
-    # 拉取最新代码
-    git pull origin main
+    # 拉取更新
+    git pull origin main || git pull origin master
     
     # 恢复本地修改
-    if [ "$STASHED" = true ]; then
-        echo "♻️  恢复本地修改..."
-        git stash pop || echo "⚠️  自动恢复失败,请手动处理冲突"
-    fi
+    git stash pop || true
     
     echo "✅ 代码更新完成"
     echo ""
 }
 
-# 检测部署方式
-detect_deployment() {
-    if [ -f "docker-compose.yml" ] && command -v docker-compose &> /dev/null; then
-        if sudo docker-compose ps | grep -q "Up"; then
-            echo "🐳 检测到Docker部署方式"
-            DEPLOY_TYPE="docker"
-            return
-        fi
+# 数据库迁移
+migrate_database() {
+    echo "💾 执行数据库迁移..."
+    
+    if [ "$DEPLOY_METHOD" = "docker" ]; then
+        # Docker环境下迁移
+        docker-compose exec -T faka python3 - <<'PYEOF'
+import sqlite3
+import os
+
+db_path = 'instance/faka.db'
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+# 检查字段是否存在
+cursor.execute("PRAGMA table_info(card)")
+columns = [col[1] for col in cursor.fetchall()]
+
+if 'is_listed' not in columns:
+    print("添加 is_listed 字段...")
+    cursor.execute("ALTER TABLE card ADD COLUMN is_listed INTEGER DEFAULT 1")
+    conn.commit()
+    print("✅ 字段添加成功!")
+else:
+    print("✅ is_listed 字段已存在,无需迁移")
+
+conn.close()
+PYEOF
+    else
+        # 直接部署环境下迁移
+        cd /opt/faka
+        source venv/bin/activate
+        python3 - <<'PYEOF'
+import sqlite3
+import os
+
+db_path = 'instance/faka.db'
+if not os.path.exists('instance'):
+    os.makedirs('instance')
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+# 检查字段是否存在
+cursor.execute("PRAGMA table_info(card)")
+columns = [col[1] for col in cursor.fetchall()]
+
+if 'is_listed' not in columns:
+    print("添加 is_listed 字段...")
+    cursor.execute("ALTER TABLE card ADD COLUMN is_listed INTEGER DEFAULT 1")
+    conn.commit()
+    print("✅ 字段添加成功!")
+else:
+    print("✅ is_listed 字段已存在,无需迁移")
+
+conn.close()
+PYEOF
     fi
     
-    if sudo systemctl is-active --quiet faka; then
-        echo "⚙️  检测到Systemd部署方式"
-        DEPLOY_TYPE="systemd"
-        return
-    fi
-    
-    echo "❌ 未检测到运行中的服务"
-    echo "请先部署系统: bash deploy.sh"
-    exit 1
+    echo "✅ 数据库迁移完成"
+    echo ""
 }
 
-# Docker方式更新
+# Docker更新
 update_docker() {
-    echo "🐳 使用Docker方式更新..."
-    echo ""
+    echo "🐳 更新Docker服务..."
     
-    echo "1️⃣ 停止服务..."
-    sudo docker-compose down
+    cd /opt/faka
     
-    echo "2️⃣ 重新构建镜像..."
-    sudo docker-compose build --no-cache
+    # 停止服务
+    docker-compose down
     
-    echo "3️⃣ 启动服务..."
-    sudo docker-compose up -d
+    # 重新构建
+    docker-compose build --no-cache
     
-    echo "4️⃣ 等待服务启动..."
+    # 启动服务
+    docker-compose up -d
+    
+    # 执行数据库迁移
     sleep 5
+    migrate_database
     
-    echo "5️⃣ 检查运行状态..."
-    sudo docker-compose ps
-    
+    echo "✅ Docker服务更新完成"
     echo ""
-    echo "✅ Docker更新完成!"
-    echo "📊 查看日志: sudo docker-compose logs -f"
 }
 
-# Systemd方式更新
+# Systemd更新
 update_systemd() {
-    echo "⚙️  使用Systemd方式更新..."
-    echo ""
+    echo "⚙️  更新Systemd服务..."
     
-    echo "1️⃣ 停止服务..."
-    sudo systemctl stop faka
+    cd /opt/faka
     
-    echo "2️⃣ 激活虚拟环境..."
+    # 激活虚拟环境
     source venv/bin/activate
     
-    echo "3️⃣ 更新依赖..."
-    pip install -r requirements.txt --upgrade -i https://pypi.tuna.tsinghua.edu.cn/simple
+    # 更新依赖
+    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
     
-    echo "4️⃣ 启动服务..."
-    sudo systemctl start faka
+    # 执行数据库迁移
+    migrate_database
     
-    echo "5️⃣ 等待服务启动..."
-    sleep 3
+    # 重启服务
+    sudo systemctl restart faka
     
-    echo "6️⃣ 检查运行状态..."
-    sudo systemctl status faka --no-pager
-    
+    echo "✅ Systemd服务更新完成"
     echo ""
-    echo "✅ Systemd更新完成!"
-    echo "📊 查看日志: sudo journalctl -u faka -f"
 }
 
 # 测试服务
 test_service() {
-    echo ""
     echo "🧪 测试服务..."
     
-    sleep 2
+    sleep 3
     
     if curl -s http://localhost:3019 > /dev/null; then
         echo "✅ 服务运行正常!"
     else
         echo "⚠️  服务可能未正常启动,请检查日志"
     fi
+    echo ""
 }
 
-# 显示访问信息
-show_info() {
+# 显示结果
+show_result() {
     echo ""
     echo "=========================================="
-    echo "   ✅ 更新完成!"
+    echo "   🎉 更新完成!"
     echo "=========================================="
     echo ""
-    echo "📱 访问地址:"
-    echo "   用户端: http://你的IP:3019"
-    echo "   管理端: http://你的IP:3019/july"
-    echo ""
-    echo "📊 常用命令:"
+    echo "📊 查看服务状态:"
     
-    if [ "$DEPLOY_TYPE" = "docker" ]; then
-        echo "   查看日志: sudo docker-compose logs -f"
-        echo "   重启服务: sudo docker-compose restart"
-        echo "   停止服务: sudo docker-compose down"
+    if [ "$DEPLOY_METHOD" = "docker" ]; then
+        echo "   docker-compose ps"
+        echo ""
+        docker-compose ps
     else
-        echo "   查看日志: sudo journalctl -u faka -f"
-        echo "   重启服务: sudo systemctl restart faka"
-        echo "   停止服务: sudo systemctl stop faka"
+        echo "   sudo systemctl status faka"
+        echo ""
+        sudo systemctl status faka --no-pager
     fi
     
     echo ""
-    echo "💾 数据库备份位置: $SCRIPT_DIR/backups/"
+    echo "📖 更新日志:"
+    if [ "$DEPLOY_METHOD" = "docker" ]; then
+        echo "   docker-compose logs -f --tail=50"
+    else
+        echo "   sudo journalctl -u faka -f -n 50"
+    fi
     echo ""
 }
 
 # 主流程
 main() {
-    # 确认更新
-    echo "⚠️  更新前请确保:"
-    echo "   1. 已通知用户系统将暂时维护"
-    echo "   2. 数据库将自动备份"
-    echo "   3. 更新过程约需1-3分钟"
-    echo ""
-    read -p "是否继续更新? (y/n): " -n 1 -r
-    echo ""
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "❌ 已取消更新"
-        exit 0
-    fi
-    
-    echo ""
+    # 检测部署方式
+    detect_deploy_method
     
     # 备份数据库
     backup_database
     
-    # 检测部署方式
-    detect_deployment
-    
     # 拉取最新代码
-    update_code
+    pull_code
     
-    # 根据部署方式更新
-    if [ "$DEPLOY_TYPE" = "docker" ]; then
+    # 执行更新
+    if [ "$DEPLOY_METHOD" = "docker" ]; then
         update_docker
     else
         update_systemd
@@ -214,8 +234,8 @@ main() {
     # 测试服务
     test_service
     
-    # 显示信息
-    show_info
+    # 显示结果
+    show_result
 }
 
 # 执行主流程

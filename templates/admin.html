@@ -30,6 +30,14 @@
                 <div class="stat-number">{{ used_cards }}</div>
                 <div class="stat-label">已使用</div>
             </div>
+            <div class="stat-card stat-listed">
+                <div class="stat-number">{{ listed_cards }}</div>
+                <div class="stat-label">已上架</div>
+            </div>
+            <div class="stat-card stat-unlisted">
+                <div class="stat-number">{{ unlisted_cards }}</div>
+                <div class="stat-label">已下架</div>
+            </div>
         </div>
         
         <!-- 导入卡密 -->
@@ -88,8 +96,12 @@
                             <option value="all">全部</option>
                             <option value="unused">未使用</option>
                             <option value="used">已使用</option>
+                            <option value="listed">已上架</option>
+                            <option value="unlisted">已下架</option>
                         </select>
                     </div>
+                    <button onclick="batchToggleStatus(true)" class="btn-primary">📦 批量上架</button>
+                    <button onclick="batchToggleStatus(false)" class="btn-secondary">📦 批量下架</button>
                     <button onclick="showCopyModal()" class="btn-primary">📋 批量复制</button>
                     <a href="/api/export_cards?type=unused" class="btn-export">📤 导出未使用</a>
                 </div>
@@ -108,14 +120,17 @@
                         <th width="40"><input type="checkbox" id="selectAll" onchange="toggleAllCards(this)"></th>
                         <th>卡密</th>
                         <th>内容</th>
-                        <th>状态</th>
+                        <th>使用状态</th>
+                        <th>上架状态</th>
                         <th>使用时间</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for card in cards %}
-                    <tr class="card-row {% if card.is_used %}row-used{% endif %}" data-status="{{ 'used' if card.is_used else 'unused' }}">
+                    <tr class="card-row {% if card.is_used %}row-used{% endif %}" 
+                        data-status="{{ 'used' if card.is_used else 'unused' }}"
+                        data-listed="{{ 'listed' if card.is_listed else 'unlisted' }}">
                         <td><input type="checkbox" class="card-checkbox" data-id="{{ card.id }}" data-key="{{ card.card_key }}" {% if card.is_used %}disabled{% endif %}></td>
                         <td><code class="card-key">{{ card.card_key }}</code></td>
                         <td class="card-content">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
@@ -126,8 +141,18 @@
                             <span class="status-unused">未使用</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if card.is_listed %}
+                            <span class="status-listed">✅ 已上架</span>
+                            {% else %}
+                            <span class="status-unlisted">❌ 已下架</span>
+                            {% endif %}
+                        </td>
                         <td>{{ card.used_at.strftime('%Y-%m-%d %H:%M') if card.used_at else '-' }}</td>
                         <td>
+                            <button onclick="toggleStatus({{ card.id }})" class="btn-toggle" {% if card.is_used %}disabled{% endif %}>
+                                {% if card.is_listed %}下架{% else %}上架{% endif %}
+                            </button>
                             <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small" {% if card.is_used %}disabled{% endif %}>复制</button>
                             <button onclick="deleteCard({{ card.id }})" class="btn-delete">删除</button>
                         </td>
@@ -271,10 +296,13 @@
             const rows = document.querySelectorAll('.card-row');
             
             rows.forEach(row => {
-                if (filter === 'all' || row.dataset.status === filter) {
-                    row.style.display = '';
+                const matchStatus = filter === 'all' || row.dataset.status === filter;
+                const matchListed = filter === 'all' || row.dataset.listed === filter;
+                
+                if (filter === 'all' || filter === 'unused' || filter === 'used') {
+                    row.style.display = matchStatus ? '' : 'none';
                 } else {
-                    row.style.display = 'none';
+                    row.style.display = matchListed ? '' : 'none';
                 }
             });
         }
@@ -388,6 +416,56 @@
                 }
             } catch (error) {
                 alert('删除失败: ' + error.message);
+            }
+        }
+        
+        async function toggleStatus(cardId) {
+            try {
+                const response = await fetch(`/api/toggle_card_status/${cardId}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('操作失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('操作失败: ' + error.message);
+            }
+        }
+        
+        async function batchToggleStatus(isListed) {
+            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('请至少选择一个卡密');
+                return;
+            }
+            
+            const cardIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
+            const action = isListed ? '上架' : '下架';
+            
+            if (!confirm(`确定要${action}选中的 ${cardIds.length} 个卡密吗?`)) return;
+            
+            try {
+                const response = await fetch('/api/batch_toggle_status', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ card_ids: cardIds, is_listed: isListed })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('操作失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('操作失败: ' + error.message);
             }
         }
         
