@@ -1,205 +1,99 @@
 # 🎫 Faka - 简易发卡系统
 
-一个轻量级的卡密发放与管理系统,支持文件上传、JSON数据导入、批量生成卡密、权限管理等功能。
+一个轻量级的卡密发放与管理系统,支持文件上传、JSON数据导入、批量生成卡密、自定义复制模板等功能。
+
+[![Docker Build](https://github.com/wp13461544040/faka/actions/workflows/docker-build.yml/badge.svg)](https://github.com/wp13461544040/faka/actions)
+
+## ⚡ 快速开始
+
+### 一键部署到Ubuntu服务器
+
+```bash
+curl -fsSL https://get.docker.com | sh && \
+sudo apt install docker-compose git -y && \
+cd /opt && \
+sudo git clone https://github.com/wp13461544040/faka.git && \
+cd faka && \
+sudo docker-compose up -d && \
+echo "部署完成! 访问 http://$(curl -s ifconfig.me):3019"
+```
+
+**访问地址**: `http://你的服务器IP:3019`  
+**管理后台**: `http://你的服务器IP:3019/july` (隐藏入口)
+
+📖 **详细文档**:
+- [⚡ 快速开始指南](QUICKSTART.md) - 5分钟上手
+- [🚀 完整部署文档](DEPLOY.md) - Docker/直接部署/Nginx配置
+
+---
 
 ## ✨ 功能特性
 
-- 🎯 **卡密生成**: 批量生成唯一卡密,支持自定义数量
-- 📁 **多种导入方式**: 
-  - 上传txt文件(每行一个内容)
-  - JSON格式导入(支持结构化数据如邮箱密码)
-- 🔐 **权限控制**: 管理员登录系统,安全可靠
-- 📊 **数据统计**: 实时查看卡密使用情况
-- 💾 **批次管理**: 按批次组织卡密,方便管理
-- 📤 **导出功能**: 一键导出未使用的卡密
-- 🐳 **Docker部署**: 一键部署,开箱即用
-- 📱 **响应式设计**: 完美适配移动端和PC端
+### 🎯 核心功能
+- 🔑 **自动生成卡密**: 格式 `XXXX-XXXX-XXXX-XXXX`,防重复
+- 📥 **灵活导入**: 支持txt文件上传、JSON数据导入
+- 📋 **批量复制**: 自定义模板,一键复制多个卡密
+- 🔍 **智能筛选**: 按使用状态筛选卡密
+- 🗑️ **便捷管理**: 删除、导出、实时统计
 
-## 🚀 快速开始
+### 🔐 安全特性
+- ✅ 首次初始化自定义管理员账号
+- ✅ 密码哈希存储(bcrypt)
+- ✅ 隐藏后台入口(`/july`)
+- ✅ 账号密码随时修改
+- ✅ 权限验证,防止未授权访问
 
-### 方式1: Docker Compose (推荐)
+### 🎨 用户体验
+- 📱 响应式设计,完美支持移动端
+- 🌈 渐变紫色主题,现代化界面
+- 🚀 操作流畅,无需刷新
+- 📊 实时统计,数据一目了然
 
-```bash
-# 克隆仓库
-git clone https://github.com/wp13461544040/faka.git
-cd faka
+---
 
-# 启动服务
-docker-compose up -d
+## 📸 界面预览
 
-# 访问 http://localhost:5000
-```
+### 用户提取页面
+简洁的卡密提取界面,输入卡密即可获取内容
 
-### 方式2: 使用预构建镜像
+### 管理后台
+- 数据统计卡片 (总数/未使用/已使用)
+- 卡密导入 (文件/JSON)
+- 卡密列表 (筛选/复制/删除)
+- 批量操作 (全选/批量复制)
 
-```bash
-# 从GitHub Container Registry拉取
-docker pull ghcr.io/wp13461544040/faka:latest
-docker run -d -p 5000:5000 -v $(pwd)/data:/app/data ghcr.io/wp13461544040/faka:latest
-
-# 或从Docker Hub拉取(需要配置后可用)
-# docker pull YOUR_DOCKERHUB_USERNAME/faka:latest
-```
-
-### 方式3: 本地开发运行
-
-```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 运行应用
-python app.py
-
-# 访问 http://localhost:5000
-```
+---
 
 ## 📖 使用说明
 
-### 首次登录
+### 管理员操作
 
-- **访问地址**: `http://localhost:5000`
-- **管理后台**: `http://localhost:5000/login`
-- **默认账号**: `admin`
-- **默认密码**: `admin123`
+1. **首次访问** `http://你的IP:3019/july`
+2. **创建管理员**账号 (用户名至少3字符,密码至少6字符)
+3. **导入内容**:
+   - 上传txt文件 (每行一个内容)
+   - 或输入JSON数组
+4. **生成卡密** (自动生成对应数量)
+5. **批量复制**发给用户
 
-⚠️ **重要**: 首次登录后请立即修改默认密码!
+### 用户操作
 
-### 创建卡密批次
-
-1. 登录管理后台
-2. 填写批次名称(如: 月卡会员)
-3. 设置生成数量
-4. 选择内容类型:
-   
-   **文件上传模式**:
-   ```
-   创建一个txt文件,每行一个内容:
-   账号1:密码1
-   账号2:密码2
-   账号3:密码3
-   ```
-   
-   **JSON模式**:
-   ```json
-   [
-     {"email": "user1@example.com", "password": "pass123"},
-     {"email": "user2@example.com", "password": "pass456"}
-   ]
-   ```
-
-5. 点击"创建批次"
-6. 自动生成卡密并可下载
-
-### 提取卡密
-
-1. 访问首页 `http://localhost:5000`
+1. 访问 `http://你的IP:3019`
 2. 输入卡密
 3. 点击"提取"
-4. 查看对应内容
-5. 卡密自动标记为已使用(一次性)
+4. 查看内容 (卡密自动标记为已使用)
 
-## 🔧 配置说明
+### 自定义复制模板
 
-### 环境变量
-
-在`docker-compose.yml`中可配置:
-
-```yaml
-environment:
-  - FLASK_ENV=production  # 生产环境模式
-```
-
-### 数据持久化
-
-Docker部署会自动挂载以下目录:
-- `./data` - 数据库文件
-- `./uploads` - 上传的文件
-
-## 📁 项目结构
+在管理后台"复制模板"输入框:
 
 ```
-faka/
-├── app.py                    # Flask后端主程序
-├── requirements.txt          # Python依赖
-├── Dockerfile               # Docker镜像构建文件
-├── docker-compose.yml       # Docker编排配置
-├── .github/
-│   └── workflows/
-│       └── docker-build.yml # GitHub Actions自动构建
-├── templates/               # HTML模板
-│   ├── index.html          # 用户提取页面
-│   ├── login.html          # 登录页面
-│   └── admin.html          # 管理后台
-├── static/
-│   └── style.css           # 样式文件
-└── uploads/                # 上传文件目录(自动创建)
+卡密：{key}\n兑换地址：http://你的域名.com\n有效期：永久
 ```
 
-## 🐳 Docker镜像自动构建
+使用 `{key}` 占位卡密, `\n` 或 `&#10;` 表示换行
 
-本项目配置了GitHub Actions自动构建流程:
-
-### 触发条件:
-- 推送到`main`分支
-- 创建新tag(如`v1.0.0`)
-- Pull Request
-
-### 构建产物:
-- GitHub Container Registry: `ghcr.io/wp13461544040/faka`
-- Docker Hub: 需配置Secret后可用
-
-### 配置Docker Hub自动推送:
-
-1. 在GitHub仓库中添加Secrets:
-   - 进入仓库 → Settings → Secrets and variables → Actions
-   - 添加以下Secrets:
-     - `DOCKERHUB_USERNAME`: 你的Docker Hub用户名
-     - `DOCKERHUB_TOKEN`: Docker Hub访问令牌
-
-2. 获取Docker Hub Token:
-   - 访问 https://hub.docker.com/settings/security
-   - 点击"New Access Token"
-   - 复制生成的token
-
-3. 推送代码,自动触发构建
-
-## 🌐 生产环境部署
-
-### 修改默认密码
-
-建议在生产环境中修改数据库或使用环境变量:
-
-```python
-# app.py 中修改默认管理员密码
-admin = User(
-    username='admin',
-    password=generate_password_hash('你的强密码'),
-    is_admin=True
-)
-```
-
-### 使用反向代理(Nginx)
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-### 使用HTTPS
-
-建议配置SSL证书,使用Let's Encrypt免费证书:
-
-```bash
-certbot --nginx -d your-domain.com
-```
+---
 
 ## 🛠️ 技术栈
 
@@ -209,29 +103,33 @@ certbot --nginx -d your-domain.com
 - **前端**: 原生HTML/CSS/JavaScript
 - **部署**: Docker + Docker Compose
 
-## 📊 数据库结构
+---
 
-### User (用户表)
-- id: 用户ID
-- username: 用户名
-- password: 密码(哈希)
-- is_admin: 是否管理员
+## 📁 项目结构
 
-### CardBatch (批次表)
-- id: 批次ID
-- name: 批次名称
-- created_at: 创建时间
-- total_cards: 总卡密数
-- used_cards: 已使用数
+```
+faka/
+├── app.py                    # Flask后端
+├── requirements.txt          # Python依赖
+├── Dockerfile               # Docker镜像
+├── docker-compose.yml       # Docker编排
+├── QUICKSTART.md            # 快速开始
+├── DEPLOY.md                # 部署文档
+├── templates/               # HTML模板
+├── static/                  # 静态资源
+└── .github/workflows/       # CI/CD
+```
 
-### Card (卡密表)
-- id: 卡密ID
-- batch_id: 所属批次
-- card_key: 卡密
-- content: 内容
-- is_used: 是否已使用
-- used_at: 使用时间
-- used_by_ip: 使用者IP
+---
+
+## 🐳 Docker镜像
+
+本项目通过GitHub Actions自动构建:
+
+- **GitHub Container Registry**: `ghcr.io/wp13461544040/faka:latest`
+- **触发条件**: 推送到main分支或创建tag
+
+---
 
 ## 🤝 贡献
 
@@ -243,4 +141,4 @@ MIT License
 
 ## ⚠️ 免责声明
 
-本项目仅供学习交流使用,请勿用于非法用途。使用本系统产生的任何法律责任由使用者自行承担。
+本项目仅供学习交流使用,使用者需自行承担法律责任。
