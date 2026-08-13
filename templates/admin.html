@@ -90,7 +90,7 @@
                 <input type="text" id="copyTemplate" 
                        value="卡密：{key}&#10;兑换地址：http://127.0.0.1:3019" 
                        placeholder="使用{key}作为卡密占位符" />
-                <small>使用 {key} 占位卡密, &#10; 表示换行</small>
+                <small>使用 {key} 占位卡密, <strong>&#10;</strong> 或 <strong>\n</strong> 表示换行</small>
             </div>
             
             <table id="cardsTable">
@@ -247,7 +247,11 @@
         }
         
         function getTemplate() {
-            return document.getElementById('copyTemplate').value.replace(/&#10;/g, '\n');
+            let template = document.getElementById('copyTemplate').value;
+            // 支持多种换行方式
+            template = template.replace(/&#10;/g, '\n');  // HTML实体
+            template = template.replace(/\\n/g, '\n');    // 转义字符
+            return template;
         }
         
         function formatCard(key) {
