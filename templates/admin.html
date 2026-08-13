@@ -55,6 +55,13 @@
         
         <div class="card">
             <h2>卡密批次列表</h2>
+            <div class="copy-template-section">
+                <label>📋 自定义复制模板:</label>
+                <input type="text" id="copyTemplate" 
+                       placeholder="例如: 卡密：{key} 兑换地址：http://127.0.0.1:3019" 
+                       value="卡密：{key}&#10;兑换地址：http://127.0.0.1:3019" />
+                <small>使用 {key} 作为卡密占位符, 使用 &#10; 表示换行</small>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -74,6 +81,7 @@
                         <td>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td>
                             <button onclick="viewCards({{ batch.id }})">查看</button>
+                            <button onclick="showCopyList({{ batch.id }})">复制列表</button>
                             <a href="/api/export_batch/{{ batch.id }}" class="btn-export">导出</a>
                         </td>
                     </tr>
@@ -114,6 +122,24 @@
                 
                 <div id="settingsError" class="error hidden"></div>
                 <div id="settingsSuccess" class="result hidden"></div>
+            </div>
+        </div>
+
+        <div id="copyListModal" class="modal hidden" style="display: none;">
+            <div class="modal-content modal-large">
+                <span class="close" onclick="closeCopyList()">&times;</span>
+                <h2>📋 批量复制卡密</h2>
+                
+                <div class="copy-actions">
+                    <button onclick="copyAllCards()" class="btn-primary">📄 一键复制全部</button>
+                    <button onclick="copyUnusedCards()" class="btn-primary">✨ 复制未使用</button>
+                    <button onclick="selectAllCards()" class="btn-secondary">☑️ 全选</button>
+                    <button onclick="unselectAllCards()" class="btn-secondary">☐ 取消全选</button>
+                </div>
+                
+                <div id="copyListTable"></div>
+                
+                <div id="copySuccess" class="result hidden">✅ 复制成功!</div>
             </div>
         </div>
     </div>
@@ -281,6 +307,143 @@
                 errorDiv.textContent = '修改失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
             }
+        }
+        
+        let currentCopyBatchId = null;
+        let currentCopyCards = [];
+        
+        async function showCopyList(batchId) {
+            try {
+                const response = await fetch(`/api/batch/${batchId}/cards`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentCopyBatchId = batchId;
+                    currentCopyCards = data.cards;
+                    
+                    let html = '<table class="copy-table"><thead><tr><th width="50"><input type="checkbox" id="selectAllCheck" onchange="toggleAllCheckboxes(this)"></th><th>卡密</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+                    data.cards.forEach((card, index) => {
+                        const statusClass = card.is_used ? 'status-used' : 'status-unused';
+                        const statusText = card.is_used ? '已使用' : '未使用';
+                        html += `<tr>
+                            <td><input type="checkbox" class="card-checkbox" data-index="${index}" ${card.is_used ? 'disabled' : ''}></td>
+                            <td><code class="card-key">${card.card_key}</code></td>
+                            <td><span class="${statusClass}">${statusText}</span></td>
+                            <td><button onclick="copySingleCard(${index})" class="btn-copy" ${card.is_used ? 'disabled' : ''}>📋 复制</button></td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    
+                    document.getElementById('copyListTable').innerHTML = html;
+                    const modal = document.getElementById('copyListModal');
+                    modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+        
+        function closeCopyList() {
+            const modal = document.getElementById('copyListModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
+        }
+        
+        function toggleAllCheckboxes(checkbox) {
+            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+        }
+        
+        function selectAllCards() {
+            document.getElementById('selectAllCheck').checked = true;
+            toggleAllCheckboxes(document.getElementById('selectAllCheck'));
+        }
+        
+        function unselectAllCards() {
+            document.getElementById('selectAllCheck').checked = false;
+            toggleAllCheckboxes(document.getElementById('selectAllCheck'));
+        }
+        
+        function getTemplate() {
+            let template = document.getElementById('copyTemplate').value;
+            // 将 &#10; 转换为真实换行符
+            template = template.replace(/&#10;/g, '\n');
+            return template;
+        }
+        
+        function formatCardText(cardKey) {
+            const template = getTemplate();
+            return template.replace(/{key}/g, cardKey);
+        }
+        
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                const successDiv = document.getElementById('copySuccess');
+                successDiv.classList.remove('hidden');
+                setTimeout(() => successDiv.classList.add('hidden'), 2000);
+                return true;
+            } catch (err) {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                const successDiv = document.getElementById('copySuccess');
+                successDiv.classList.remove('hidden');
+                setTimeout(() => successDiv.classList.add('hidden'), 2000);
+                return true;
+            }
+        }
+        
+        function copySingleCard(index) {
+            const card = currentCopyCards[index];
+            if (card.is_used) return;
+            
+            const text = formatCardText(card.card_key);
+            copyToClipboard(text);
+        }
+        
+        function copyAllCards() {
+            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('请至少选择一个卡密');
+                return;
+            }
+            
+            const texts = [];
+            checkboxes.forEach(cb => {
+                const index = parseInt(cb.dataset.index);
+                const card = currentCopyCards[index];
+                if (!card.is_used) {
+                    texts.push(formatCardText(card.card_key));
+                }
+            });
+            
+            if (texts.length === 0) {
+                alert('没有可复制的卡密');
+                return;
+            }
+            
+            copyToClipboard(texts.join('\n\n'));
+        }
+        
+        function copyUnusedCards() {
+            const unusedCards = currentCopyCards.filter(card => !card.is_used);
+            
+            if (unusedCards.length === 0) {
+                alert('没有未使用的卡密');
+                return;
+            }
+            
+            const texts = unusedCards.map(card => formatCardText(card.card_key));
+            copyToClipboard(texts.join('\n\n'));
         }
     </script>
 </body>
