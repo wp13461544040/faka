@@ -15,7 +15,7 @@ COPY . .
 RUN mkdir -p uploads
 
 # 暴露端口
-EXPOSE 5000
+EXPOSE 3019
 
 # 启动应用
 CMD ["python", "app.py"]
