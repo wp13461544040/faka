@@ -6,6 +6,8 @@ from werkzeug.utils import secure_filename
 import secrets
 import json
 import os
+import random
+import string
 from datetime import datetime
 
 app = Flask(__name__)
@@ -21,6 +23,16 @@ login_manager.login_view = 'july'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# 生成卡密函数
+def generate_card_key():
+    """生成格式为 xxxx-xxxx-xxxx-xxxx 的卡密"""
+    chars = string.ascii_uppercase + string.digits  # A-Z和0-9
+    parts = []
+    for _ in range(4):
+        part = ''.join(random.choices(chars, k=4))
+        parts.append(part)
+    return '-'.join(parts)
+
 # 数据库模型
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -35,6 +47,7 @@ class CardBatch(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     total_cards = db.Column(db.Integer, default=0)
     used_cards = db.Column(db.Integer, default=0)
+    description = db.Column(db.String(200))  # 批次描述
 
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -133,55 +146,84 @@ def create_batch():
     if not current_user.is_admin:
         return jsonify({'success': False, 'message': '无权限'}), 403
     
-    batch_name = request.form.get('batch_name')
-    card_count = int(request.form.get('card_count', 10))
+    batch_name = request.form.get('batch_name', '').strip()
     content_type = request.form.get('content_type')
+    
+    if not batch_name:
+        return jsonify({'success': False, 'message': '请输入批次名称'}), 400
+    
+    cards_data = []
+    content_list = []
+    
+    # 解析内容
+    if content_type == 'file':
+        file = request.files.get('file')
+        if not file:
+            return jsonify({'success': False, 'message': '请上传文件'}), 400
+        
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            content_list = [line.strip() for line in lines if line.strip()]
+        
+        # 删除临时文件
+        os.remove(filepath)
+    
+    elif content_type == 'json':
+        json_content = request.form.get('json_content', '').strip()
+        if not json_content:
+            return jsonify({'success': False, 'message': '请输入JSON内容'}), 400
+        
+        try:
+            data = json.loads(json_content)
+            if not isinstance(data, list):
+                return jsonify({'success': False, 'message': 'JSON必须是数组格式'}), 400
+            content_list = [json.dumps(item, ensure_ascii=False) for item in data]
+        except json.JSONDecodeError:
+            return jsonify({'success': False, 'message': 'JSON格式错误'}), 400
+    else:
+        return jsonify({'success': False, 'message': '请选择内容类型'}), 400
+    
+    if not content_list:
+        return jsonify({'success': False, 'message': '内容为空'}), 400
     
     # 创建批次
     batch = CardBatch(
         name=batch_name,
         created_by=current_user.id,
-        total_cards=card_count
+        total_cards=len(content_list),
+        description=f"{content_type}导入, {len(content_list)}个卡密"
     )
     db.session.add(batch)
     db.session.flush()
     
-    cards_data = []
-    
-    if content_type == 'file':
-        file = request.files.get('file')
-        if file:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            
-            with open(filepath, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                for i in range(card_count):
-                    card_key = secrets.token_urlsafe(24)
-                    content = lines[i].strip() if i < len(lines) else f"内容{i+1}"
-                    card = Card(batch_id=batch.id, card_key=card_key, content=content)
-                    db.session.add(card)
-                    cards_data.append({'key': card_key, 'content': content})
-    
-    elif content_type == 'json':
-        json_content = request.form.get('json_content')
-        try:
-            data = json.loads(json_content)
-            for i in range(min(card_count, len(data))):
-                card_key = secrets.token_urlsafe(24)
-                content = json.dumps(data[i], ensure_ascii=False)
-                card = Card(batch_id=batch.id, card_key=card_key, content=content)
-                db.session.add(card)
-                cards_data.append({'key': card_key, 'content': content})
-        except json.JSONDecodeError:
-            return jsonify({'success': False, 'message': 'JSON格式错误'}), 400
+    # 生成卡密
+    for content in content_list:
+        # 生成唯一卡密
+        while True:
+            card_key = generate_card_key()
+            # 检查是否重复
+            if not Card.query.filter_by(card_key=card_key).first():
+                break
+        
+        card = Card(
+            batch_id=batch.id,
+            card_key=card_key,
+            content=content
+        )
+        db.session.add(card)
+        cards_data.append({'key': card_key, 'content': content})
     
     db.session.commit()
     
     return jsonify({
         'success': True,
         'batch_id': batch.id,
+        'batch_name': batch_name,
+        'total': len(content_list),
         'cards': cards_data
     })
 

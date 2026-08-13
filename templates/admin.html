@@ -19,8 +19,7 @@
         <div class="card">
             <h2>创建卡密批次</h2>
             <form id="createForm" enctype="multipart/form-data">
-                <input type="text" name="batch_name" placeholder="批次名称" required />
-                <input type="number" name="card_count" placeholder="卡密数量" value="10" min="1" required />
+                <input type="text" name="batch_name" placeholder="批次名称(如:VIP会员)" required />
                 
                 <div class="radio-group">
                     <label>
@@ -35,20 +34,20 @@
                 
                 <div id="fileUpload">
                     <input type="file" name="file" accept=".txt" />
-                    <small>每行一个内容,支持txt文件</small>
+                    <small>每行一个内容,导入后自动生成对应数量的卡密(格式:XXXX-XXXX-XXXX-XXXX)</small>
                 </div>
                 
                 <div id="jsonInput" class="hidden">
                     <textarea name="json_content" rows="8" placeholder='[{"email":"test@example.com","password":"123456"}]'></textarea>
-                    <small>JSON数组格式,每个对象为一张卡密内容</small>
+                    <small>JSON数组格式,每个对象对应一个卡密,导入后自动生成(格式:XXXX-XXXX-XXXX-XXXX)</small>
                 </div>
                 
                 <button type="submit">创建批次</button>
             </form>
             
             <div id="createResult" class="result hidden">
-                <h3>创建成功!</h3>
-                <button onclick="downloadKeys()">下载卡密</button>
+                <h3>✅ 创建成功! 共生成 <span id="totalCount">0</span> 个卡密</h3>
+                <button onclick="downloadKeys()">📥 下载卡密</button>
                 <pre id="keysPreview"></pre>
             </div>
         </div>
@@ -170,10 +169,11 @@
                     currentBatchId = data.batch_id;
                     createdKeys = data.cards.map(c => c.key);
                     
+                    document.getElementById('totalCount').textContent = data.total;
                     document.getElementById('keysPreview').textContent = createdKeys.join('\n');
                     document.getElementById('createResult').classList.remove('hidden');
                     
-                    setTimeout(() => location.reload(), 3000);
+                    setTimeout(() => location.reload(), 5000);
                 } else {
                     alert('创建失败: ' + data.message);
                 }
