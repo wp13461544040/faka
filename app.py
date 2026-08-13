@@ -19,7 +19,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'july'
+login_manager.login_view = 'login'  # 这里要用函数名不是路由
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
