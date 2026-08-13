@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初始化系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 系统初始化</h1>
+        <div class="card">
+            <h2>创建管理员账号</h2>
+            <p class="init-tip">检测到首次运行,请设置管理员账号和密码</p>
+            
+            <input type="text" id="username" placeholder="用户名(至少3个字符)" />
+            <input type="password" id="password" placeholder="密码(至少6个字符)" />
+            <input type="password" id="confirmPassword" placeholder="确认密码" />
+            <button onclick="initAdmin()">创建管理员</button>
+            
+            <div id="error" class="error hidden"></div>
+            <div id="success" class="result hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        async function initAdmin() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorDiv = document.getElementById('error');
+            const successDiv = document.getElementById('success');
+            
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+            
+            if (!username || !password || !confirmPassword) {
+                errorDiv.textContent = '请填写完整信息';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/init', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        confirm_password: confirmPassword
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    successDiv.textContent = '管理员创建成功! 3秒后跳转登录页...';
+                    successDiv.classList.remove('hidden');
+                    setTimeout(() => {
+                        window.location.href = '/july';
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.message;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = '创建失败: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+        
+        document.getElementById('confirmPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') initAdmin();
+        });
+    </script>
+</body>
+</html>

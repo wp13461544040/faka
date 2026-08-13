@@ -23,6 +23,27 @@ body {
     margin-bottom: 30px;
 }
 
+.header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-settings {
+    padding: 10px 20px;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-size: 14px;
+}
+
+.btn-settings:hover {
+    background: rgba(255,255,255,0.3);
+}
+
 h1 {
     color: white;
     text-align: center;
@@ -146,6 +167,25 @@ button:active {
     margin-top: 15px;
     font-size: 14px;
     opacity: 0.9;
+}
+
+.init-tip {
+    background: #e3f2fd;
+    padding: 15px;
+    border-radius: 8px;
+    color: #1976d2;
+    margin-bottom: 20px;
+    border-left: 4px solid #2196f3;
+}
+
+.settings-section {
+    margin-bottom: 20px;
+}
+
+.settings-section h3 {
+    color: #666;
+    font-size: 1.1em;
+    margin-bottom: 15px;
 }
 
 .radio-group {

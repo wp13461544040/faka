@@ -10,7 +10,10 @@
     <div class="container">
         <div class="header">
             <h1>🎛️ 管理后台</h1>
-            <a href="/logout" class="btn-logout">退出登录</a>
+            <div class="header-right">
+                <button onclick="showSettings()" class="btn-settings">⚙️ 账号设置</button>
+                <a href="/logout" class="btn-logout">退出登录</a>
+            </div>
         </div>
         
         <div class="card">
@@ -84,6 +87,33 @@
                 <span class="close" onclick="closeModal()">&times;</span>
                 <h2>卡密详情</h2>
                 <div id="cardsTable"></div>
+            </div>
+        </div>
+
+        <div id="settingsModal" class="modal hidden" style="display: none;">
+            <div class="modal-content">
+                <span class="close" onclick="closeSettings()">&times;</span>
+                <h2>⚙️ 账号设置</h2>
+                
+                <div class="settings-section">
+                    <h3>修改用户名</h3>
+                    <input type="text" id="newUsername" placeholder="新用户名(至少3个字符)" />
+                    <input type="password" id="usernamePassword" placeholder="输入当前密码确认" />
+                    <button onclick="changeUsername()">修改用户名</button>
+                </div>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;" />
+                
+                <div class="settings-section">
+                    <h3>修改密码</h3>
+                    <input type="password" id="oldPassword" placeholder="原密码" />
+                    <input type="password" id="newPassword" placeholder="新密码(至少6个字符)" />
+                    <input type="password" id="confirmNewPassword" placeholder="确认新密码" />
+                    <button onclick="changePassword()">修改密码</button>
+                </div>
+                
+                <div id="settingsError" class="error hidden"></div>
+                <div id="settingsSuccess" class="result hidden"></div>
             </div>
         </div>
     </div>
@@ -161,6 +191,92 @@
         
         function closeModal() {
             document.getElementById('cardsModal').classList.add('hidden');
+        }
+        
+        function showSettings() {
+            document.getElementById('settingsModal').classList.remove('hidden');
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+        
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.add('hidden');
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+        
+        async function changeUsername() {
+            const newUsername = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('usernamePassword').value;
+            const errorDiv = document.getElementById('settingsError');
+            const successDiv = document.getElementById('settingsSuccess');
+            
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/change_username', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        new_username: newUsername,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    successDiv.textContent = data.message + ' 3秒后重新登录...';
+                    successDiv.classList.remove('hidden');
+                    setTimeout(() => {
+                        window.location.href = '/logout';
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.message;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = '修改失败: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+        
+        async function changePassword() {
+            const oldPassword = document.getElementById('oldPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+            const errorDiv = document.getElementById('settingsError');
+            const successDiv = document.getElementById('settingsSuccess');
+            
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/change_password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        old_password: oldPassword,
+                        new_password: newPassword,
+                        confirm_password: confirmNewPassword
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    successDiv.textContent = data.message + ' 3秒后重新登录...';
+                    successDiv.classList.remove('hidden');
+                    setTimeout(() => {
+                        window.location.href = '/logout';
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.message;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = '修改失败: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
         }
     </script>
 </body>

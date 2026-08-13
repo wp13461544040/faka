@@ -52,15 +52,6 @@ def load_user(user_id):
 # 初始化数据库
 with app.app_context():
     db.create_all()
-    # 创建默认管理员账号
-    if not User.query.filter_by(username='admin').first():
-        admin = User(
-            username='admin',
-            password=generate_password_hash('admin123'),
-            is_admin=True
-        )
-        db.session.add(admin)
-        db.session.commit()
 
 # 路由
 @app.route('/')
@@ -69,6 +60,10 @@ def index():
 
 @app.route('/july', methods=['GET', 'POST'])
 def login():
+    # 检查是否首次运行(无管理员)
+    if User.query.count() == 0:
+        return redirect(url_for('init_admin'))
+    
     if request.method == 'POST':
         data = request.get_json()
         username = data.get('username')
@@ -81,6 +76,40 @@ def login():
         return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
     
     return render_template('login.html')
+
+@app.route('/init', methods=['GET', 'POST'])
+def init_admin():
+    # 如果已有管理员,跳转到登录页
+    if User.query.count() > 0:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        confirm_password = data.get('confirm_password', '').strip()
+        
+        if not username or len(username) < 3:
+            return jsonify({'success': False, 'message': '用户名至少3个字符'}), 400
+        
+        if not password or len(password) < 6:
+            return jsonify({'success': False, 'message': '密码至少6个字符'}), 400
+        
+        if password != confirm_password:
+            return jsonify({'success': False, 'message': '两次密码不一致'}), 400
+        
+        # 创建管理员
+        admin = User(
+            username=username,
+            password=generate_password_hash(password),
+            is_admin=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': '管理员创建成功'})
+    
+    return render_template('init.html')
 
 @app.route('/logout')
 @login_required
@@ -224,6 +253,57 @@ def export_batch(batch_id):
         'Content-Type': 'text/plain',
         'Content-Disposition': f'attachment; filename=batch_{batch_id}_keys.txt'
     }
+
+@app.route('/api/change_password', methods=['POST'])
+@login_required
+def change_password():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    data = request.get_json()
+    old_password = data.get('old_password', '').strip()
+    new_password = data.get('new_password', '').strip()
+    confirm_password = data.get('confirm_password', '').strip()
+    
+    if not check_password_hash(current_user.password, old_password):
+        return jsonify({'success': False, 'message': '原密码错误'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': '新密码至少6个字符'}), 400
+    
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'message': '两次密码不一致'}), 400
+    
+    current_user.password = generate_password_hash(new_password)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '密码修改成功'})
+
+@app.route('/api/change_username', methods=['POST'])
+@login_required
+def change_username():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    data = request.get_json()
+    new_username = data.get('new_username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not check_password_hash(current_user.password, password):
+        return jsonify({'success': False, 'message': '密码错误'}), 400
+    
+    if len(new_username) < 3:
+        return jsonify({'success': False, 'message': '用户名至少3个字符'}), 400
+    
+    # 检查用户名是否已存在
+    existing_user = User.query.filter_by(username=new_username).first()
+    if existing_user and existing_user.id != current_user.id:
+        return jsonify({'success': False, 'message': '用户名已存在'}), 400
+    
+    current_user.username = new_username
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '用户名修改成功'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3019, debug=False)
