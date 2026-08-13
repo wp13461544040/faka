@@ -137,8 +137,19 @@ def admin():
         flash('无权限访问')
         return redirect(url_for('index'))
     
-    batches = CardBatch.query.order_by(CardBatch.created_at.desc()).all()
-    return render_template('admin.html', batches=batches)
+    # 直接获取所有卡密,按创建时间倒序
+    cards = Card.query.order_by(Card.id.desc()).all()
+    
+    # 统计信息
+    total_cards = Card.query.count()
+    used_cards = Card.query.filter_by(is_used=True).count()
+    unused_cards = total_cards - used_cards
+    
+    return render_template('admin.html', 
+                         cards=cards,
+                         total_cards=total_cards,
+                         used_cards=used_cards,
+                         unused_cards=unused_cards)
 
 @app.route('/api/create_batch', methods=['POST'])
 @login_required
@@ -146,11 +157,7 @@ def create_batch():
     if not current_user.is_admin:
         return jsonify({'success': False, 'message': '无权限'}), 403
     
-    batch_name = request.form.get('batch_name', '').strip()
     content_type = request.form.get('content_type')
-    
-    if not batch_name:
-        return jsonify({'success': False, 'message': '请输入批次名称'}), 400
     
     cards_data = []
     content_list = []
@@ -190,17 +197,7 @@ def create_batch():
     if not content_list:
         return jsonify({'success': False, 'message': '内容为空'}), 400
     
-    # 创建批次
-    batch = CardBatch(
-        name=batch_name,
-        created_by=current_user.id,
-        total_cards=len(content_list),
-        description=f"{content_type}导入, {len(content_list)}个卡密"
-    )
-    db.session.add(batch)
-    db.session.flush()
-    
-    # 生成卡密
+    # 直接生成卡密,不创建批次
     for content in content_list:
         # 生成唯一卡密
         while True:
@@ -210,7 +207,7 @@ def create_batch():
                 break
         
         card = Card(
-            batch_id=batch.id,
+            batch_id=None,  # 不需要批次ID
             card_key=card_key,
             content=content
         )
@@ -221,8 +218,6 @@ def create_batch():
     
     return jsonify({
         'success': True,
-        'batch_id': batch.id,
-        'batch_name': batch_name,
         'total': len(content_list),
         'cards': cards_data
     })
@@ -248,10 +243,6 @@ def use_card():
     card.used_at = datetime.utcnow()
     card.used_by_ip = request.remote_addr
     
-    # 更新批次统计
-    batch = CardBatch.query.get(card.batch_id)
-    batch.used_cards += 1
-    
     db.session.commit()
     
     # 尝试解析JSON内容
@@ -265,36 +256,42 @@ def use_card():
         'content': content_data
     })
 
-@app.route('/api/batch/<int:batch_id>/cards')
+@app.route('/api/export_cards')
 @login_required
-def get_batch_cards(batch_id):
+def export_cards():
     if not current_user.is_admin:
         return jsonify({'success': False, 'message': '无权限'}), 403
     
-    cards = Card.query.filter_by(batch_id=batch_id).all()
-    cards_data = [{
-        'id': card.id,
-        'card_key': card.card_key,
-        'content': card.content,
-        'is_used': card.is_used,
-        'used_at': card.used_at.strftime('%Y-%m-%d %H:%M:%S') if card.used_at else None
-    } for card in cards]
+    filter_type = request.args.get('type', 'unused')
     
-    return jsonify({'success': True, 'cards': cards_data})
-
-@app.route('/api/export_batch/<int:batch_id>')
-@login_required
-def export_batch(batch_id):
-    if not current_user.is_admin:
-        return jsonify({'success': False, 'message': '无权限'}), 403
+    if filter_type == 'unused':
+        cards = Card.query.filter_by(is_used=False).all()
+    elif filter_type == 'used':
+        cards = Card.query.filter_by(is_used=True).all()
+    else:
+        cards = Card.query.all()
     
-    cards = Card.query.filter_by(batch_id=batch_id, is_used=False).all()
     cards_text = '\n'.join([card.card_key for card in cards])
     
     return cards_text, 200, {
-        'Content-Type': 'text/plain',
-        'Content-Disposition': f'attachment; filename=batch_{batch_id}_keys.txt'
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Disposition': f'attachment; filename=cards_{filter_type}.txt'
     }
+
+@app.route('/api/delete_card/<int:card_id>', methods=['DELETE'])
+@login_required
+def delete_card(card_id):
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    card = Card.query.get(card_id)
+    if not card:
+        return jsonify({'success': False, 'message': '卡密不存在'}), 404
+    
+    db.session.delete(card)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '删除成功'})
 
 @app.route('/api/change_password', methods=['POST'])
 @login_required

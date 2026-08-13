@@ -9,18 +9,33 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎛️ 管理后台</h1>
+            <h1>🎛️ 卡密管理后台</h1>
             <div class="header-right">
                 <button onclick="showSettings()" class="btn-settings">⚙️ 账号设置</button>
                 <a href="/logout" class="btn-logout">退出登录</a>
             </div>
         </div>
         
+        <!-- 统计信息 -->
+        <div class="stats-cards">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_cards }}</div>
+                <div class="stat-label">总卡密数</div>
+            </div>
+            <div class="stat-card stat-success">
+                <div class="stat-number">{{ unused_cards }}</div>
+                <div class="stat-label">未使用</div>
+            </div>
+            <div class="stat-card stat-used">
+                <div class="stat-number">{{ used_cards }}</div>
+                <div class="stat-label">已使用</div>
+            </div>
+        </div>
+        
+        <!-- 导入卡密 -->
         <div class="card">
-            <h2>创建卡密批次</h2>
+            <h2>📥 导入卡密内容</h2>
             <form id="createForm" enctype="multipart/form-data">
-                <input type="text" name="batch_name" placeholder="批次名称(如:VIP会员)" required />
-                
                 <div class="radio-group">
                     <label>
                         <input type="radio" name="content_type" value="file" checked onchange="toggleContent()" />
@@ -34,69 +49,92 @@
                 
                 <div id="fileUpload">
                     <input type="file" name="file" accept=".txt" />
-                    <small>每行一个内容,导入后自动生成对应数量的卡密(格式:XXXX-XXXX-XXXX-XXXX)</small>
+                    <small>每行一个内容,自动生成对应数量卡密(格式:XXXX-XXXX-XXXX-XXXX)</small>
                 </div>
                 
                 <div id="jsonInput" class="hidden">
-                    <textarea name="json_content" rows="8" placeholder='[{"email":"test@example.com","password":"123456"}]'></textarea>
-                    <small>JSON数组格式,每个对象对应一个卡密,导入后自动生成(格式:XXXX-XXXX-XXXX-XXXX)</small>
+                    <textarea name="json_content" rows="6" placeholder='[{"email":"user@qq.com","password":"123456"}]'></textarea>
+                    <small>JSON数组,每个对象对应一个卡密</small>
                 </div>
                 
-                <button type="submit">创建批次</button>
+                <button type="submit">🚀 生成卡密</button>
             </form>
             
             <div id="createResult" class="result hidden">
-                <h3>✅ 创建成功! 共生成 <span id="totalCount">0</span> 个卡密</h3>
+                <h3>✅ 成功生成 <span id="totalCount">0</span> 个卡密</h3>
                 <button onclick="downloadKeys()">📥 下载卡密</button>
                 <pre id="keysPreview"></pre>
             </div>
         </div>
         
+        <!-- 卡密列表 -->
         <div class="card">
-            <h2>卡密批次列表</h2>
-            <div class="copy-template-section">
-                <label>📋 自定义复制模板:</label>
-                <input type="text" id="copyTemplate" 
-                       placeholder="例如: 卡密：{key} 兑换地址：http://127.0.0.1:3019" 
-                       value="卡密：{key}&#10;兑换地址：http://127.0.0.1:3019" />
-                <small>使用 {key} 作为卡密占位符, 使用 &#10; 表示换行</small>
+            <div class="list-header">
+                <h2>📋 卡密列表</h2>
+                <div class="list-actions">
+                    <div class="filter-group">
+                        <label>筛选:</label>
+                        <select id="filterStatus" onchange="filterCards()">
+                            <option value="all">全部</option>
+                            <option value="unused">未使用</option>
+                            <option value="used">已使用</option>
+                        </select>
+                    </div>
+                    <button onclick="showCopyModal()" class="btn-primary">📋 批量复制</button>
+                    <a href="/api/export_cards?type=unused" class="btn-export">📤 导出未使用</a>
+                </div>
             </div>
-            <table>
+            
+            <div class="copy-template-section">
+                <label>📋 复制模板:</label>
+                <input type="text" id="copyTemplate" 
+                       value="卡密：{key}&#10;兑换地址：http://127.0.0.1:3019" 
+                       placeholder="使用{key}作为卡密占位符" />
+                <small>使用 {key} 占位卡密, &#10; 表示换行</small>
+            </div>
+            
+            <table id="cardsTable">
                 <thead>
                     <tr>
-                        <th>批次名称</th>
-                        <th>总数</th>
-                        <th>已用</th>
-                        <th>创建时间</th>
+                        <th width="40"><input type="checkbox" id="selectAll" onchange="toggleAllCards(this)"></th>
+                        <th>卡密</th>
+                        <th>内容</th>
+                        <th>状态</th>
+                        <th>使用时间</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for batch in batches %}
-                    <tr>
-                        <td>{{ batch.name }}</td>
-                        <td>{{ batch.total_cards }}</td>
-                        <td>{{ batch.used_cards }}</td>
-                        <td>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    {% for card in cards %}
+                    <tr class="card-row {% if card.is_used %}row-used{% endif %}" data-status="{{ 'used' if card.is_used else 'unused' }}">
+                        <td><input type="checkbox" class="card-checkbox" data-id="{{ card.id }}" data-key="{{ card.card_key }}" {% if card.is_used %}disabled{% endif %}></td>
+                        <td><code class="card-key">{{ card.card_key }}</code></td>
+                        <td class="card-content">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
                         <td>
-                            <button onclick="viewCards({{ batch.id }})">查看</button>
-                            <button onclick="showCopyList({{ batch.id }})">复制列表</button>
-                            <a href="/api/export_batch/{{ batch.id }}" class="btn-export">导出</a>
+                            {% if card.is_used %}
+                            <span class="status-used">已使用</span>
+                            {% else %}
+                            <span class="status-unused">未使用</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ card.used_at.strftime('%Y-%m-%d %H:%M') if card.used_at else '-' }}</td>
+                        <td>
+                            <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small" {% if card.is_used %}disabled{% endif %}>复制</button>
+                            <button onclick="deleteCard({{ card.id }})" class="btn-delete">删除</button>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            
+            {% if cards|length == 0 %}
+            <div class="empty-state">
+                <p>📭 暂无卡密,请先导入内容生成卡密</p>
+            </div>
+            {% endif %}
         </div>
         
-        <div id="cardsModal" class="modal hidden" style="display: none;">
-            <div class="modal-content">
-                <span class="close" onclick="closeModal()">&times;</span>
-                <h2>卡密详情</h2>
-                <div id="cardsTable"></div>
-            </div>
-        </div>
-
+        <!-- 账号设置弹窗 -->
         <div id="settingsModal" class="modal hidden" style="display: none;">
             <div class="modal-content">
                 <span class="close" onclick="closeSettings()">&times;</span>
@@ -123,20 +161,21 @@
                 <div id="settingsSuccess" class="result hidden"></div>
             </div>
         </div>
-
-        <div id="copyListModal" class="modal hidden" style="display: none;">
+        
+        <!-- 批量复制弹窗 -->
+        <div id="copyModal" class="modal hidden" style="display: none;">
             <div class="modal-content modal-large">
-                <span class="close" onclick="closeCopyList()">&times;</span>
+                <span class="close" onclick="closeCopyModal()">&times;</span>
                 <h2>📋 批量复制卡密</h2>
                 
-                <div class="copy-actions">
-                    <button onclick="copyAllCards()" class="btn-primary">📄 一键复制全部</button>
-                    <button onclick="copyUnusedCards()" class="btn-primary">✨ 复制未使用</button>
-                    <button onclick="selectAllCards()" class="btn-secondary">☑️ 全选</button>
-                    <button onclick="unselectAllCards()" class="btn-secondary">☐ 取消全选</button>
+                <div class="copy-stats">
+                    <p>已选择 <strong id="selectedCount">0</strong> 个未使用的卡密</p>
                 </div>
                 
-                <div id="copyListTable"></div>
+                <div class="copy-actions">
+                    <button onclick="copySelected()" class="btn-primary">📄 复制选中</button>
+                    <button onclick="copyAllUnused()" class="btn-primary">✨ 复制全部未使用</button>
+                </div>
                 
                 <div id="copySuccess" class="result hidden">✅ 复制成功!</div>
             </div>
@@ -144,8 +183,7 @@
     </div>
 
     <script>
-        let currentBatchId = null;
-        let createdKeys = [];
+        let currentKeys = [];
         
         function toggleContent() {
             const contentType = document.querySelector('input[name="content_type"]:checked').value;
@@ -166,61 +204,149 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    currentBatchId = data.batch_id;
-                    createdKeys = data.cards.map(c => c.key);
+                    currentKeys = data.cards.map(c => c.key);
                     
                     document.getElementById('totalCount').textContent = data.total;
-                    document.getElementById('keysPreview').textContent = createdKeys.join('\n');
+                    document.getElementById('keysPreview').textContent = currentKeys.join('\n');
                     document.getElementById('createResult').classList.remove('hidden');
                     
-                    setTimeout(() => location.reload(), 5000);
+                    setTimeout(() => location.reload(), 3000);
                 } else {
-                    alert('创建失败: ' + data.message);
+                    alert('生成失败: ' + data.message);
                 }
             } catch (error) {
-                alert('创建失败: ' + error.message);
+                alert('生成失败: ' + error.message);
             }
         });
         
         function downloadKeys() {
-            const blob = new Blob([createdKeys.join('\n')], {type: 'text/plain'});
+            const blob = new Blob([currentKeys.join('\n')], {type: 'text/plain'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `batch_${currentBatchId}_keys.txt`;
+            a.download = `cards_${Date.now()}.txt`;
             a.click();
         }
         
-        async function viewCards(batchId) {
-            try {
-                const response = await fetch(`/api/batch/${batchId}/cards`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    let html = '<table><thead><tr><th>卡密</th><th>状态</th><th>使用时间</th></tr></thead><tbody>';
-                    data.cards.forEach(card => {
-                        html += `<tr>
-                            <td><code>${card.card_key}</code></td>
-                            <td>${card.is_used ? '已使用' : '未使用'}</td>
-                            <td>${card.used_at || '-'}</td>
-                        </tr>`;
-                    });
-                    html += '</tbody></table>';
-                    
-                    document.getElementById('cardsTable').innerHTML = html;
-                    const modal = document.getElementById('cardsModal');
-                    modal.classList.remove('hidden');
-                    modal.style.display = 'flex';
+        function filterCards() {
+            const filter = document.getElementById('filterStatus').value;
+            const rows = document.querySelectorAll('.card-row');
+            
+            rows.forEach(row => {
+                if (filter === 'all' || row.dataset.status === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
                 }
-            } catch (error) {
-                alert('加载失败: ' + error.message);
+            });
+        }
+        
+        function toggleAllCards(checkbox) {
+            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+        }
+        
+        function getTemplate() {
+            return document.getElementById('copyTemplate').value.replace(/&#10;/g, '\n');
+        }
+        
+        function formatCard(key) {
+            return getTemplate().replace(/{key}/g, key);
+        }
+        
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                return true;
             }
         }
         
-        function closeModal() {
-            const modal = document.getElementById('cardsModal');
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
+        async function copySingle(key) {
+            const text = formatCard(key);
+            await copyToClipboard(text);
+            alert('✅ 复制成功!');
+        }
+        
+        function showCopyModal() {
+            updateSelectedCount();
+            document.getElementById('copyModal').classList.remove('hidden');
+            document.getElementById('copyModal').style.display = 'flex';
+        }
+        
+        function closeCopyModal() {
+            document.getElementById('copyModal').classList.add('hidden');
+            document.getElementById('copyModal').style.display = 'none';
+        }
+        
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('.card-checkbox:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+        }
+        
+        document.querySelectorAll('.card-checkbox').forEach(cb => {
+            cb.addEventListener('change', updateSelectedCount);
+        });
+        
+        async function copySelected() {
+            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('请至少选择一个卡密');
+                return;
+            }
+            
+            const keys = Array.from(checkboxes).map(cb => cb.dataset.key);
+            const text = keys.map(key => formatCard(key)).join('\n\n');
+            
+            await copyToClipboard(text);
+            const successDiv = document.getElementById('copySuccess');
+            successDiv.classList.remove('hidden');
+            setTimeout(() => successDiv.classList.add('hidden'), 2000);
+        }
+        
+        async function copyAllUnused() {
+            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
+            if (checkboxes.length === 0) {
+                alert('没有未使用的卡密');
+                return;
+            }
+            
+            const keys = Array.from(checkboxes).map(cb => cb.dataset.key);
+            const text = keys.map(key => formatCard(key)).join('\n\n');
+            
+            await copyToClipboard(text);
+            const successDiv = document.getElementById('copySuccess');
+            successDiv.classList.remove('hidden');
+            setTimeout(() => successDiv.classList.add('hidden'), 2000);
+        }
+        
+        async function deleteCard(cardId) {
+            if (!confirm('确定要删除这个卡密吗?')) return;
+            
+            try {
+                const response = await fetch(`/api/delete_card/${cardId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('删除失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
         }
         
         function showSettings() {
@@ -246,10 +372,7 @@
                 const response = await fetch('/api/change_username', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        new_username: newUsername,
-                        password: password
-                    })
+                    body: JSON.stringify({ new_username: newUsername, password: password })
                 });
                 
                 const data = await response.json();
@@ -257,9 +380,7 @@
                 if (data.success) {
                     successDiv.textContent = data.message + ' 3秒后重新登录...';
                     successDiv.classList.remove('hidden');
-                    setTimeout(() => {
-                        window.location.href = '/logout';
-                    }, 3000);
+                    setTimeout(() => window.location.href = '/logout', 3000);
                 } else {
                     errorDiv.textContent = data.message;
                     errorDiv.classList.remove('hidden');
@@ -296,9 +417,7 @@
                 if (data.success) {
                     successDiv.textContent = data.message + ' 3秒后重新登录...';
                     successDiv.classList.remove('hidden');
-                    setTimeout(() => {
-                        window.location.href = '/logout';
-                    }, 3000);
+                    setTimeout(() => window.location.href = '/logout', 3000);
                 } else {
                     errorDiv.textContent = data.message;
                     errorDiv.classList.remove('hidden');
@@ -307,143 +426,6 @@
                 errorDiv.textContent = '修改失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
             }
-        }
-        
-        let currentCopyBatchId = null;
-        let currentCopyCards = [];
-        
-        async function showCopyList(batchId) {
-            try {
-                const response = await fetch(`/api/batch/${batchId}/cards`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentCopyBatchId = batchId;
-                    currentCopyCards = data.cards;
-                    
-                    let html = '<table class="copy-table"><thead><tr><th width="50"><input type="checkbox" id="selectAllCheck" onchange="toggleAllCheckboxes(this)"></th><th>卡密</th><th>状态</th><th>操作</th></tr></thead><tbody>';
-                    data.cards.forEach((card, index) => {
-                        const statusClass = card.is_used ? 'status-used' : 'status-unused';
-                        const statusText = card.is_used ? '已使用' : '未使用';
-                        html += `<tr>
-                            <td><input type="checkbox" class="card-checkbox" data-index="${index}" ${card.is_used ? 'disabled' : ''}></td>
-                            <td><code class="card-key">${card.card_key}</code></td>
-                            <td><span class="${statusClass}">${statusText}</span></td>
-                            <td><button onclick="copySingleCard(${index})" class="btn-copy" ${card.is_used ? 'disabled' : ''}>📋 复制</button></td>
-                        </tr>`;
-                    });
-                    html += '</tbody></table>';
-                    
-                    document.getElementById('copyListTable').innerHTML = html;
-                    const modal = document.getElementById('copyListModal');
-                    modal.classList.remove('hidden');
-                    modal.style.display = 'flex';
-                }
-            } catch (error) {
-                alert('加载失败: ' + error.message);
-            }
-        }
-        
-        function closeCopyList() {
-            const modal = document.getElementById('copyListModal');
-            modal.classList.add('hidden');
-            modal.style.display = 'none';
-        }
-        
-        function toggleAllCheckboxes(checkbox) {
-            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
-            checkboxes.forEach(cb => cb.checked = checkbox.checked);
-        }
-        
-        function selectAllCards() {
-            document.getElementById('selectAllCheck').checked = true;
-            toggleAllCheckboxes(document.getElementById('selectAllCheck'));
-        }
-        
-        function unselectAllCards() {
-            document.getElementById('selectAllCheck').checked = false;
-            toggleAllCheckboxes(document.getElementById('selectAllCheck'));
-        }
-        
-        function getTemplate() {
-            let template = document.getElementById('copyTemplate').value;
-            // 将 &#10; 转换为真实换行符
-            template = template.replace(/&#10;/g, '\n');
-            return template;
-        }
-        
-        function formatCardText(cardKey) {
-            const template = getTemplate();
-            return template.replace(/{key}/g, cardKey);
-        }
-        
-        async function copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                const successDiv = document.getElementById('copySuccess');
-                successDiv.classList.remove('hidden');
-                setTimeout(() => successDiv.classList.add('hidden'), 2000);
-                return true;
-            } catch (err) {
-                // 降级方案
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                const successDiv = document.getElementById('copySuccess');
-                successDiv.classList.remove('hidden');
-                setTimeout(() => successDiv.classList.add('hidden'), 2000);
-                return true;
-            }
-        }
-        
-        function copySingleCard(index) {
-            const card = currentCopyCards[index];
-            if (card.is_used) return;
-            
-            const text = formatCardText(card.card_key);
-            copyToClipboard(text);
-        }
-        
-        function copyAllCards() {
-            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
-            if (checkboxes.length === 0) {
-                alert('请至少选择一个卡密');
-                return;
-            }
-            
-            const texts = [];
-            checkboxes.forEach(cb => {
-                const index = parseInt(cb.dataset.index);
-                const card = currentCopyCards[index];
-                if (!card.is_used) {
-                    texts.push(formatCardText(card.card_key));
-                }
-            });
-            
-            if (texts.length === 0) {
-                alert('没有可复制的卡密');
-                return;
-            }
-            
-            copyToClipboard(texts.join('\n\n'));
-        }
-        
-        function copyUnusedCards() {
-            const unusedCards = currentCopyCards.filter(card => !card.is_used);
-            
-            if (unusedCards.length === 0) {
-                alert('没有未使用的卡密');
-                return;
-            }
-            
-            const texts = unusedCards.map(card => formatCardText(card.card_key));
-            copyToClipboard(texts.join('\n\n'));
         }
     </script>
 </body>
