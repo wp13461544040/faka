@@ -111,7 +111,14 @@ button:active {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
+}
+
+.modal.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 .footer {
