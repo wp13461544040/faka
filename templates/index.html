@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡密提取系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🎫 卡密提取系统</h1>
+        <div class="card">
+            <h2>提取卡密内容</h2>
+            <input type="text" id="cardKey" placeholder="请输入卡密" />
+            <button onclick="useCard()">提取</button>
+            
+            <div id="result" class="result hidden">
+                <h3>提取结果:</h3>
+                <pre id="content"></pre>
+            </div>
+            
+            <div id="error" class="error hidden"></div>
+        </div>
+        
+        <div class="footer">
+            <a href="/login">管理员登录</a>
+        </div>
+    </div>
+
+    <script>
+        async function useCard() {
+            const cardKey = document.getElementById('cardKey').value.trim();
+            const resultDiv = document.getElementById('result');
+            const errorDiv = document.getElementById('error');
+            const contentPre = document.getElementById('content');
+            
+            resultDiv.classList.add('hidden');
+            errorDiv.classList.add('hidden');
+            
+            if (!cardKey) {
+                errorDiv.textContent = '请输入卡密';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/use_card', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({card_key: cardKey})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    contentPre.textContent = typeof data.content === 'object' 
+                        ? JSON.stringify(data.content, null, 2) 
+                        : data.content;
+                    resultDiv.classList.remove('hidden');
+                } else {
+                    errorDiv.textContent = data.message;
+                    errorDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                errorDiv.textContent = '请求失败: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+        
+        document.getElementById('cardKey').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') useCard();
+        });
+    </script>
+</body>
+</html>

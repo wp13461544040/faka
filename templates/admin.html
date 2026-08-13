@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎛️ 管理后台</h1>
+            <a href="/logout" class="btn-logout">退出登录</a>
+        </div>
+        
+        <div class="card">
+            <h2>创建卡密批次</h2>
+            <form id="createForm" enctype="multipart/form-data">
+                <input type="text" name="batch_name" placeholder="批次名称" required />
+                <input type="number" name="card_count" placeholder="卡密数量" value="10" min="1" required />
+                
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="content_type" value="file" checked onchange="toggleContent()" />
+                        上传文件
+                    </label>
+                    <label>
+                        <input type="radio" name="content_type" value="json" onchange="toggleContent()" />
+                        JSON内容
+                    </label>
+                </div>
+                
+                <div id="fileUpload">
+                    <input type="file" name="file" accept=".txt" />
+                    <small>每行一个内容,支持txt文件</small>
+                </div>
+                
+                <div id="jsonInput" class="hidden">
+                    <textarea name="json_content" rows="8" placeholder='[{"email":"test@example.com","password":"123456"}]'></textarea>
+                    <small>JSON数组格式,每个对象为一张卡密内容</small>
+                </div>
+                
+                <button type="submit">创建批次</button>
+            </form>
+            
+            <div id="createResult" class="result hidden">
+                <h3>创建成功!</h3>
+                <button onclick="downloadKeys()">下载卡密</button>
+                <pre id="keysPreview"></pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>卡密批次列表</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>批次名称</th>
+                        <th>总数</th>
+                        <th>已用</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in batches %}
+                    <tr>
+                        <td>{{ batch.name }}</td>
+                        <td>{{ batch.total_cards }}</td>
+                        <td>{{ batch.used_cards }}</td>
+                        <td>{{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <button onclick="viewCards({{ batch.id }})">查看</button>
+                            <a href="/api/export_batch/{{ batch.id }}" class="btn-export">导出</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="cardsModal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h2>卡密详情</h2>
+                <div id="cardsTable"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBatchId = null;
+        let createdKeys = [];
+        
+        function toggleContent() {
+            const contentType = document.querySelector('input[name="content_type"]:checked').value;
+            document.getElementById('fileUpload').classList.toggle('hidden', contentType !== 'file');
+            document.getElementById('jsonInput').classList.toggle('hidden', contentType !== 'json');
+        }
+        
+        document.getElementById('createForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch('/api/create_batch', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentBatchId = data.batch_id;
+                    createdKeys = data.cards.map(c => c.key);
+                    
+                    document.getElementById('keysPreview').textContent = createdKeys.join('\n');
+                    document.getElementById('createResult').classList.remove('hidden');
+                    
+                    setTimeout(() => location.reload(), 3000);
+                } else {
+                    alert('创建失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('创建失败: ' + error.message);
+            }
+        });
+        
+        function downloadKeys() {
+            const blob = new Blob([createdKeys.join('\n')], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `batch_${currentBatchId}_keys.txt`;
+            a.click();
+        }
+        
+        async function viewCards(batchId) {
+            try {
+                const response = await fetch(`/api/batch/${batchId}/cards`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '<table><thead><tr><th>卡密</th><th>状态</th><th>使用时间</th></tr></thead><tbody>';
+                    data.cards.forEach(card => {
+                        html += `<tr>
+                            <td><code>${card.card_key}</code></td>
+                            <td>${card.is_used ? '已使用' : '未使用'}</td>
+                            <td>${card.used_at || '-'}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    
+                    document.getElementById('cardsTable').innerHTML = html;
+                    document.getElementById('cardsModal').classList.remove('hidden');
+                }
+            } catch (error) {
+                alert('加载失败: ' + error.message);
+            }
+        }
+        
+        function closeModal() {
+            document.getElementById('cardsModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

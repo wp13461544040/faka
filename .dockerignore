@@ -1,0 +1,10 @@
+*.db
+uploads/
+data/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.env
+venv/
+*.log
