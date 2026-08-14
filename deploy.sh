@@ -12,10 +12,11 @@ echo ""
 
 # GitHub镜像列表
 GITHUB_MIRRORS=(
-    "https://ghproxy.com/"
-    "https://mirror.ghproxy.com/"
-    "https://gh.api.99988866.xyz/"
-    "https://gitclone.com/"
+    "https://ghp.ci/"
+    "https://github.moeyy.xyz/"
+    "https://gh-proxy.com/"
+    "https://ghproxy.cc/"
+    "https://gh.ddlc.top/"
     ""  # 原始地址
 )
 
@@ -97,36 +98,48 @@ check_docker() {
 # 测试GitHub镜像连接
 test_github_mirror() {
     local mirror=$1
-    local test_url="${mirror}https://github.com/${GITHUB_REPO}"
     
-    if timeout 5 curl -sL -w "%{http_code}" "$test_url" -o /dev/null | grep -q "200\|301\|302"; then
-        return 0
+    if [ -z "$mirror" ]; then
+        # 测试原始GitHub
+        if timeout 10 git ls-remote https://github.com/${GITHUB_REPO}.git HEAD &>/dev/null; then
+            return 0
+        fi
     else
-        return 1
+        # 测试镜像 - 直接尝试ls-remote
+        local test_url="${mirror}https://github.com/${GITHUB_REPO}.git"
+        if timeout 10 git ls-remote "$test_url" HEAD &>/dev/null; then
+            return 0
+        fi
     fi
+    
+    return 1
 }
 
 # 选择最快的GitHub镜像
 select_best_mirror() {
-    print_info "测试GitHub镜像速度..."
+    print_info "测试GitHub镜像连接..."
     
     for mirror in "${GITHUB_MIRRORS[@]}"; do
         if [ -z "$mirror" ]; then
-            MIRROR_URL=""
-            print_success "使用原始GitHub地址"
-            return
+            print_info "测试原始GitHub..."
+        else
+            print_info "测试镜像: $mirror"
         fi
         
-        print_info "测试镜像: $mirror"
         if test_github_mirror "$mirror"; then
             MIRROR_URL="$mirror"
-            print_success "选择镜像: $mirror"
-            return
+            if [ -z "$mirror" ]; then
+                print_success "使用原始GitHub地址"
+            else
+                print_success "使用镜像: $mirror"
+            fi
+            return 0
         fi
     done
     
-    print_warning "所有镜像测试失败,使用原始地址"
-    MIRROR_URL=""
+    print_error "所有镜像测试失败"
+    print_warning "请检查网络连接或手动克隆项目"
+    exit 1
 }
 
 # 克隆或更新项目
@@ -142,14 +155,19 @@ clone_or_update() {
         # 备份数据
         if [ -f "instance/faka.db" ]; then
             print_info "备份数据库..."
-            cp instance/faka.db instance/faka.db.backup.$(date +%Y%m%d_%H%M%S)
+            mkdir -p backups
+            cp instance/faka.db backups/faka.db.backup.$(date +%Y%m%d_%H%M%S)
         fi
         
+        # 更新代码
         git remote set-url origin "$CLONE_URL"
-        git fetch origin
-        git reset --hard origin/main || git reset --hard origin/master
-        
-        print_success "代码更新完成"
+        if git fetch origin; then
+            git reset --hard origin/main || git reset --hard origin/master
+            print_success "代码更新完成"
+        else
+            print_error "代码更新失败"
+            exit 1
+        fi
     else
         print_info "下载项目代码..."
         print_info "克隆地址: $CLONE_URL"
@@ -157,12 +175,18 @@ clone_or_update() {
         sudo rm -rf "$INSTALL_DIR"
         sudo mkdir -p "$(dirname "$INSTALL_DIR")"
         
-        if git clone "$CLONE_URL" "$INSTALL_DIR"; then
-            print_success "代码下载完成"
-        else
-            print_error "代码下载失败"
-            exit 1
+        # 尝试克隆,失败后重试
+        if ! git clone --depth 1 "$CLONE_URL" "$INSTALL_DIR"; then
+            print_warning "克隆失败,尝试完整克隆..."
+            if ! git clone "$CLONE_URL" "$INSTALL_DIR"; then
+                print_error "代码下载失败"
+                print_info "请尝试手动克隆:"
+                print_info "  git clone https://github.com/${GITHUB_REPO}.git $INSTALL_DIR"
+                exit 1
+            fi
         fi
+        
+        print_success "代码下载完成"
     fi
     
     echo ""
