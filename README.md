@@ -6,37 +6,29 @@
 
 ## ⚡ 快速开始
 
-### 🐳 Ubuntu Docker一键部署 (推荐)
+### 🐳 Docker一键部署 (推荐)
 
 ```bash
-# 方式1: 一行命令(首次部署或更新)
-cd /opt && ([ -d "faka" ] && cd faka && sudo git pull || sudo git clone https://github.com/wp13461544040/faka.git && cd faka) && chmod +x deploy.sh && sudo bash deploy.sh
+# 一键部署
+bash <(curl -fsSL https://raw.githubusercontent.com/wp13461544040/faka/main/deploy.sh)
 ```
 
 或分步执行:
 ```bash
-# 1. 下载或更新代码
-cd /opt
-if [ -d "faka" ]; then
-    cd faka && sudo git pull
-else
-    sudo git clone https://github.com/wp13461544040/faka.git && cd faka
-fi
+# 1. 克隆项目
+git clone https://github.com/wp13461544040/faka.git
+cd faka
 
-# 2. 一键部署
-chmod +x deploy.sh
-sudo bash deploy.sh
-# 选择 1) Docker部署
-
-# 就这么简单!脚本会自动安装Docker、执行数据库迁移、启动服务
+# 2. 运行部署脚本
+bash deploy.sh
 ```
 
-### 🪟 Windows本地测试
-
-```cmd
-# 双击运行
-start.bat
-```
+脚本会自动:
+- 检测Docker环境
+- 选择最快的GitHub镜像
+- 构建Docker镜像
+- 启动服务
+- 配置防火墙
 
 **访问地址**: `http://你的服务器IP:3019`  
 **管理后台**: `http://你的服务器IP:3019/july` (隐藏入口)
@@ -48,11 +40,12 @@ start.bat
 ### 🎯 核心功能
 - 🔑 **自动生成卡密**: 格式 `XXXX-XXXX-XXXX-XXXX`,防重复
 - 📥 **灵活导入**: 支持txt文件上传、JSON数据导入
-- 🏪 **上架/下架管理**: 控制卡密是否可被用户兑换 (NEW!)
-- 📋 **批量操作**: 批量上架/下架、批量复制
+- 🏪 **上架/下架管理**: 控制卡密是否可被用户兑换
+- 📋 **批量操作**: 批量上架/下架、批量复制卡密和内容
 - 📊 **实时统计**: 总数/已使用/未使用/已上架/已下架
 - 🔍 **智能筛选**: 按使用状态、上架状态筛选
 - 🗑️ **便捷管理**: 删除、导出、自定义模板
+- 🕐 **时间管理**: 东八区(UTC+8)时间显示
 
 ### 🔐 安全特性
 - ✅ 首次初始化自定义管理员账号
@@ -69,22 +62,25 @@ start.bat
 
 ---
 
-## 🆕 新功能: 卡密上架/下架管理
+## 🆕 新功能
 
-### 功能说明
-- 每个卡密都有"上架/下架"状态,默认已上架
+### 卡密上架/下架管理
+- 每个卡密都有"上架/下架"状态
+- **新导入的卡密默认为下架状态**
 - **只有已上架的卡密才能被用户兑换**
-- 已下架的卡密不影响查看和删除,仅用户无法兑换
+- 支持单个/批量操作
+
+### 复制完整内容
+- **所有卡密都可以复制完整内容**
+- 不受使用状态和上架状态限制
+- "复制卡密"按钮: 复制格式化的卡密模板(仅未使用)
+- "复制内容"按钮: 复制卡密原始内容(无限制)
 
 ### 使用场景
 - 导入大批卡密,逐批上架销售
 - 临时下架某些卡密
 - 控制卡密发放节奏
-
-### 操作方法
-1. **单个操作**: 点击每行的"上架/下架"按钮
-2. **批量操作**: 勾选多个卡密,点击"批量上架/下架"
-3. **状态筛选**: 筛选器选择"已上架"或"已下架"
+- 查看已使用卡密的内容
 
 ---
 
@@ -97,7 +93,7 @@ start.bat
 3. **导入内容**:
    - 上传txt文件 (每行一个内容)
    - 或输入JSON数组
-4. **生成卡密** (自动生成对应数量,默认已上架)
+4. **生成卡密** (自动生成对应数量,默认下架状态)
 5. **管理状态**: 根据需要上架/下架卡密
 6. **批量复制**发给用户
 
@@ -106,45 +102,28 @@ start.bat
 1. 访问 `http://你的IP:3019`
 2. 输入卡密
 3. 点击"提取"
-4. 查看内容 (卡密自动标记为已使用)
+4. 查看内容 (卡密自动标记为已使用,记录UTC+8时间)
 
 ---
 
 ## 🔄 常用命令
 
-### Docker部署
 ```bash
 # 查看状态
-sudo docker-compose ps
+cd /opt/faka
+docker-compose ps
 
 # 查看日志
-sudo docker-compose logs -f
+docker-compose logs -f
 
 # 重启服务
-sudo docker-compose restart
+docker-compose restart
 
 # 停止服务
-sudo docker-compose down
+docker-compose down
 
-# 一键更新
-cd /opt/faka
-sudo bash update.sh
-```
-
-### Systemd部署
-```bash
-# 查看状态
-sudo systemctl status faka
-
-# 查看日志
-sudo journalctl -u faka -f
-
-# 重启服务
-sudo systemctl restart faka
-
-# 一键更新
-cd /opt/faka
-sudo bash update.sh
+# 更新系统
+bash update.sh
 ```
 
 ---
@@ -155,7 +134,7 @@ sudo bash update.sh
 - **数据库**: SQLite
 - **认证**: Flask-Login + Bcrypt
 - **前端**: 原生HTML/CSS/JavaScript
-- **部署**: Docker + Docker Compose / Systemd
+- **部署**: Docker + Docker Compose
 
 ---
 
@@ -167,7 +146,6 @@ faka/
 ├── requirements.txt          # Python依赖
 ├── deploy.sh                # 一键部署脚本
 ├── update.sh                # 一键更新脚本
-├── start.bat                # Windows启动脚本
 ├── Dockerfile               # Docker镜像
 ├── docker-compose.yml       # Docker编排
 ├── templates/               # HTML模板
@@ -186,24 +164,25 @@ faka/
 ## 🐛 常见问题
 
 ### Q: 如何修改端口?
-编辑 `app.py` 最后一行或 `docker-compose.yml` 的端口映射
+编辑 `docker-compose.yml` 的端口映射,将 `3019:3019` 改为 `你的端口:3019`
 
 ### Q: 如何修改管理后台路径?
 编辑 `app.py` 中的 `@app.route('/july', ...)` 改成你想要的路径
 
 ### Q: 如何备份数据?
-数据库文件: `instance/faka.db`,直接复制即可
+数据库文件: `instance/faka.db`,直接复制即可。或使用 `update.sh` 自动备份
 
 ### Q: 更新后功能异常?
-运行 `sudo bash update.sh` 会自动执行数据库迁移
+运行 `bash update.sh` 会自动备份数据并更新
 
 ---
 
 ## 🐳 Docker镜像
 
-本项目通过GitHub Actions自动构建:
+本项目通过GitHub Actions自动构建多架构镜像:
 
 - **GitHub Container Registry**: `ghcr.io/wp13461544040/faka:latest`
+- **支持架构**: amd64, arm64
 - **触发条件**: 推送到main分支或创建tag
 
 ---

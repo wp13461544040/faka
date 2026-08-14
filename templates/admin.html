@@ -61,18 +61,8 @@
                 </div>
                 
                 <div id="jsonInput" class="hidden">
-                    <div style="margin-bottom: 10px;">
-                        <button type="button" onclick="fillTemplate()" class="btn-template">📋 填充模板示例</button>
-                    </div>
-                    <textarea id="jsonTextarea" name="json_content" rows="10" placeholder='点击上方按钮查看模板示例'></textarea>
-                    <small>JSON数组格式,每个对象对应一个卡密。示例格式:</small>
-                    <pre style="background:#f5f5f5;padding:10px;margin-top:5px;font-size:12px;border-radius:4px;">[
-  {
-    "email": "account@example.com",
-    "password": "your_password",
-    "sessionKey": "your_session_key"
-  }
-]</pre>
+                    <textarea id="jsonTextarea" name="json_content" rows="10" placeholder='输入JSON数组格式内容'></textarea>
+                    <small>JSON数组格式,每个对象对应一个卡密</small>
                 </div>
                 
                 <button type="submit">🚀 生成卡密</button>
@@ -133,7 +123,7 @@
                         data-listed="{{ 'listed' if card.is_listed else 'unlisted' }}">
                         <td><input type="checkbox" class="card-checkbox" data-id="{{ card.id }}" data-key="{{ card.card_key }}" {% if card.is_used %}disabled{% endif %}></td>
                         <td><code class="card-key">{{ card.card_key }}</code></td>
-                        <td class="card-content">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
+                        <td class="card-content" title="{{ card.content }}">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
                         <td>
                             {% if card.is_used %}
                             <span class="status-used">已使用</span>
@@ -148,12 +138,13 @@
                             <span class="status-unlisted">❌ 已下架</span>
                             {% endif %}
                         </td>
-                        <td>{{ card.used_at.strftime('%Y-%m-%d %H:%M') if card.used_at else '-' }}</td>
+                        <td>{{ card.used_at | format_time }}</td>
                         <td>
                             <button onclick="toggleStatus({{ card.id }})" class="btn-toggle" {% if card.is_used %}disabled{% endif %}>
                                 {% if card.is_listed %}下架{% else %}上架{% endif %}
                             </button>
-                            <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small" {% if card.is_used %}disabled{% endif %}>复制</button>
+                            <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small" {% if card.is_used %}disabled{% endif %}>复制卡密</button>
+                            <button onclick="copyContent({{ card.id }}, `{{ card.content|replace('`', '\\`')|replace('\\', '\\\\')|replace('\n', '\\n')|replace('\r', '') }}`)" class="btn-copy-small">复制内容</button>
                             <button onclick="deleteCard({{ card.id }})" class="btn-delete">删除</button>
                         </td>
                     </tr>
@@ -241,17 +232,6 @@
             const contentType = document.querySelector('input[name="content_type"]:checked').value;
             document.getElementById('fileUpload').classList.toggle('hidden', contentType !== 'file');
             document.getElementById('jsonInput').classList.toggle('hidden', contentType !== 'json');
-        }
-        
-        function fillTemplate() {
-            const template = [
-                {
-                    "email": "RusselEmmrich56881@hotmail.com",
-                    "password": "mzmyv73278",
-                    "sessionKey": "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"
-                }
-            ];
-            document.getElementById('jsonTextarea').value = JSON.stringify(template, null, 2);
         }
         
         document.getElementById('createForm').addEventListener('submit', async function(e) {
@@ -344,7 +324,12 @@
         async function copySingle(key) {
             const text = formatCard(key);
             await copyToClipboard(text);
-            alert('✅ 复制成功!');
+            alert('✅ 卡密复制成功!');
+        }
+        
+        async function copyContent(cardId, content) {
+            await copyToClipboard(content);
+            alert('✅ 内容复制成功!');
         }
         
         function showCopyModal() {

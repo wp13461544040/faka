@@ -8,7 +8,7 @@ import json
 import os
 import random
 import string
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(32)
@@ -23,6 +23,18 @@ login_manager.login_view = 'login'  # 这里要用函数名不是路由
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Jinja2 时间格式化过滤器
+@app.template_filter('format_time')
+def format_time(dt):
+    """格式化时间为东八区时间字符串"""
+    if not dt:
+        return '-'
+    # 如果有时区信息,直接格式化
+    if dt.tzinfo:
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    # 如果没有时区信息,视为UTC+8
+    return dt.strftime('%Y-%m-%d %H:%M:%S')
+
 # 生成卡密函数
 def generate_card_key():
     """生成格式为 xxxx-xxxx-xxxx-xxxx 的卡密"""
@@ -32,6 +44,11 @@ def generate_card_key():
         part = ''.join(random.choices(chars, k=4))
         parts.append(part)
     return '-'.join(parts)
+
+# 获取东八区当前时间
+def get_beijing_time():
+    """返回UTC+8时区的当前时间"""
+    return datetime.now(timezone(timedelta(hours=8)))
 
 # 数据库模型
 class User(UserMixin, db.Model):
@@ -43,7 +60,7 @@ class User(UserMixin, db.Model):
 class CardBatch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     total_cards = db.Column(db.Integer, default=0)
     used_cards = db.Column(db.Integer, default=0)
@@ -214,7 +231,8 @@ def create_batch():
         card = Card(
             batch_id=None,  # 不需要批次ID
             card_key=card_key,
-            content=content
+            content=content,
+            is_listed=False  # 默认下架
         )
         db.session.add(card)
         cards_data.append({'key': card_key, 'content': content})
@@ -241,14 +259,16 @@ def use_card():
         return jsonify({'success': False, 'message': '该卡密未上架,暂不可用'}), 400
     
     if card.is_used:
+        # 格式化时间为东八区显示
+        used_time = card.used_at.strftime('%Y-%m-%d %H:%M:%S') if card.used_at else '未知'
         return jsonify({
             'success': False,
-            'message': f'卡密已被使用 (使用时间: {card.used_at})'
+            'message': f'卡密已被使用 (使用时间: {used_time})'
         }), 400
     
     # 标记为已使用
     card.is_used = True
-    card.used_at = datetime.utcnow()
+    card.used_at = get_beijing_time()
     card.used_by_ip = request.remote_addr
     
     db.session.commit()
