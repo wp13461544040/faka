@@ -250,12 +250,26 @@ build_and_start() {
     $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down 2>/dev/null || true
     
     # 构建镜像
-    print_info "开始构建镜像 (可能需要几分钟)..."
+    print_info "开始构建镜像 (首次构建可能需要5-10分钟)..."
     if $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" build --no-cache; then
         print_success "镜像构建完成"
     else
         print_error "镜像构建失败"
-        print_warning "如果是网络问题,可尝试配置Docker镜像加速"
+        echo ""
+        print_warning "常见原因:"
+        print_warning "1. 网络连接问题 - 无法拉取Docker镜像"
+        print_warning "2. 磁盘空间不足"
+        echo ""
+        print_info "解决方案:"
+        print_info "1. 配置Docker镜像加速:"
+        print_info "   sudo bash docker-mirror-setup.sh"
+        echo ""
+        print_info "2. 检查磁盘空间:"
+        print_info "   df -h"
+        echo ""
+        print_info "3. 清理Docker缓存:"
+        print_info "   docker system prune -a"
+        echo ""
         exit 1
     fi
     
@@ -266,6 +280,7 @@ build_and_start() {
         print_success "容器启动完成"
     else
         print_error "容器启动失败"
+        print_info "查看日志: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE logs"
         exit 1
     fi
     

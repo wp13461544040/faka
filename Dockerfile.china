@@ -1,5 +1,5 @@
-# 国内优化版Dockerfile - 使用阿里云镜像加速
-FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.11-slim
+# 国内优化版Dockerfile - 使用国内镜像加速
+FROM python:3.11-slim
 
 WORKDIR /app
 
