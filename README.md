@@ -9,7 +9,7 @@
 ### 🐳 Docker一键部署 (推荐)
 
 ```bash
-# 一键部署
+# 一键部署(自动检测网络环境)
 bash <(curl -fsSL https://raw.githubusercontent.com/wp13461544040/faka/main/deploy.sh)
 ```
 
@@ -25,10 +25,24 @@ bash deploy.sh
 
 脚本会自动:
 - 检测Docker环境
+- 检测网络环境(国内/国际)
 - 选择最快的GitHub镜像
-- 构建Docker镜像
+- 使用对应的镜像源构建
 - 启动服务
 - 配置防火墙
+
+### 🇨🇳 国内服务器优化
+
+如果在国内服务器部署,脚本会自动:
+- 使用阿里云Docker镜像源
+- 使用清华/阿里云PyPI镜像
+- 使用GitHub镜像加速克隆
+
+**手动指定国内配置**:
+```bash
+cd faka
+docker-compose -f docker-compose.china.yml up -d --build
+```
 
 **访问地址**: `http://你的服务器IP:3019`  
 **管理后台**: `http://你的服务器IP:3019/july` (隐藏入口)

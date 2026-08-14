@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  faka:
+    build:
+      context: .
+      dockerfile: Dockerfile.china
+    container_name: faka_system
+    ports:
+      - "3019:3019"
+    volumes:
+      - ./instance:/app/instance
+      - ./uploads:/app/uploads
+    environment:
+      - FLASK_ENV=production
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3019"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

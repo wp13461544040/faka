@@ -95,6 +95,22 @@ check_docker() {
     echo ""
 }
 
+# 检测是否在国内
+check_china_network() {
+    print_info "检测网络环境..."
+    
+    # 测试能否访问Docker Hub
+    if timeout 5 curl -s https://hub.docker.com > /dev/null 2>&1; then
+        USE_CHINA_MIRROR=false
+        print_success "使用国际镜像源"
+    else
+        USE_CHINA_MIRROR=true
+        print_warning "检测到国内网络,将使用国内镜像加速"
+    fi
+    
+    echo ""
+}
+
 # 测试GitHub镜像连接
 test_github_mirror() {
     local mirror=$1
@@ -198,32 +214,30 @@ configure_compose() {
     
     cd "$INSTALL_DIR"
     
-    # 确保docker-compose.yml存在
-    if [ ! -f "docker-compose.yml" ]; then
-        print_info "创建docker-compose.yml..."
-        cat > docker-compose.yml <<EOF
-version: '3.8'
-
-services:
-  faka:
-    build: .
-    container_name: faka_system
-    ports:
-      - "$PORT:3019"
-    volumes:
-      - ./instance:/app/instance
-      - ./uploads:/app/uploads
-    environment:
-      - FLASK_ENV=production
-    restart: unless-stopped
-EOF
+    # 根据网络环境选择配置文件
+    if [ "$USE_CHINA_MIRROR" = true ]; then
+        if [ -f "docker-compose.china.yml" ]; then
+            print_info "使用国内优化配置"
+            COMPOSE_FILE="docker-compose.china.yml"
+        else
+            print_warning "国内配置文件不存在,使用默认配置"
+            COMPOSE_FILE="docker-compose.yml"
+        fi
+    else
+        COMPOSE_FILE="docker-compose.yml"
+    fi
+    
+    # 确保配置文件存在
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        print_error "配置文件 $COMPOSE_FILE 不存在"
+        exit 1
     fi
     
     # 创建必要目录
     sudo mkdir -p instance uploads
     sudo chmod -R 755 instance uploads
     
-    print_success "配置完成"
+    print_success "配置完成 (使用: $COMPOSE_FILE)"
     echo ""
 }
 
@@ -233,20 +247,22 @@ build_and_start() {
     cd "$INSTALL_DIR"
     
     # 停止旧容器
-    $DOCKER_COMPOSE_CMD down 2>/dev/null || true
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down 2>/dev/null || true
     
     # 构建镜像
-    if $DOCKER_COMPOSE_CMD build; then
+    print_info "开始构建镜像 (可能需要几分钟)..."
+    if $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" build --no-cache; then
         print_success "镜像构建完成"
     else
         print_error "镜像构建失败"
+        print_warning "如果是网络问题,可尝试配置Docker镜像加速"
         exit 1
     fi
     
     echo ""
     print_info "启动容器..."
     
-    if $DOCKER_COMPOSE_CMD up -d; then
+    if $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" up -d; then
         print_success "容器启动完成"
     else
         print_error "容器启动失败"
@@ -305,7 +321,7 @@ setup_firewall() {
 show_status() {
     print_info "服务状态:"
     cd "$INSTALL_DIR"
-    $DOCKER_COMPOSE_CMD ps
+    $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps
     echo ""
 }
 
@@ -352,6 +368,7 @@ main() {
     # 检测环境
     check_system
     check_docker
+    check_china_network
     
     # 下载代码
     clone_or_update

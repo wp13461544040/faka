@@ -35,8 +35,11 @@ venv/
 # 部署脚本
 deploy.sh
 update.sh
-docker-update.sh
 fix_git.sh
 
 # 文档
 README.md
+
+# 国内配置(不打包到镜像)
+docker-compose.china.yml
+Dockerfile.china
