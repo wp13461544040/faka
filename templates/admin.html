@@ -79,21 +79,34 @@
         <div class="card">
             <div class="list-header">
                 <h2>📋 卡密列表</h2>
-                <div class="list-actions">
-                    <div class="filter-group">
-                        <label>筛选:</label>
-                        <select id="filterStatus" onchange="filterCards()">
-                            <option value="all">全部</option>
-                            <option value="unused">未使用</option>
-                            <option value="used">已使用</option>
-                            <option value="listed">已上架</option>
-                            <option value="unlisted">已下架</option>
-                        </select>
+            </div>
+            
+            <!-- 操作工具栏 -->
+            <div class="toolbar">
+                <div class="toolbar-left">
+                    <label class="toolbar-label">筛选:</label>
+                    <select id="filterStatus" onchange="filterCards()">
+                        <option value="all">全部</option>
+                        <option value="unused">未使用</option>
+                        <option value="used">已使用</option>
+                        <option value="listed">已上架</option>
+                        <option value="unlisted">已下架</option>
+                    </select>
+                </div>
+                
+                <div class="toolbar-right">
+                    <div class="btn-group">
+                        <span class="group-title">批量操作</span>
+                        <button onclick="batchToggleStatus(true)" class="btn-sm btn-success">上架</button>
+                        <button onclick="batchToggleStatus(false)" class="btn-sm btn-warning">下架</button>
+                        <button onclick="batchDelete()" class="btn-sm btn-danger">删除</button>
                     </div>
-                    <button onclick="batchToggleStatus(true)" class="btn-primary">📦 批量上架</button>
-                    <button onclick="batchToggleStatus(false)" class="btn-secondary">📦 批量下架</button>
-                    <button onclick="showCopyModal()" class="btn-primary">📋 批量复制</button>
-                    <a href="/api/export_cards?type=unused" class="btn-export">📤 导出未使用</a>
+                    
+                    <div class="btn-group">
+                        <span class="group-title">导出</span>
+                        <button onclick="showCopyModal()" class="btn-sm btn-info">复制</button>
+                        <a href="/api/export_cards?type=unused" class="btn-sm btn-info">下载</a>
+                    </div>
                 </div>
             </div>
             
@@ -666,6 +679,47 @@
                 }
             } catch (error) {
                 alert('操作失败: ' + error.message);
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+        
+        async function batchDelete() {
+            const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('请至少选择一个卡密');
+                return;
+            }
+            
+            const cardIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
+            
+            if (!confirm(`确定要删除选中的 ${cardIds.length} 个卡密吗？此操作不可恢复！`)) return;
+            
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '删除中...';
+            
+            try {
+                const response = await fetch('/api/batch_delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ card_ids: cardIds })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    button.textContent = '✅ 完成';
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('删除失败: ' + data.message);
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
                 button.disabled = false;
                 button.textContent = originalText;
             }

@@ -438,5 +438,27 @@ def batch_toggle_status():
     
     return jsonify({'success': True, 'message': message})
 
+@app.route('/api/batch_delete', methods=['POST'])
+@login_required
+def batch_delete():
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    
+    data = request.get_json()
+    card_ids = data.get('card_ids', [])
+    
+    if not card_ids:
+        return jsonify({'success': False, 'message': '未选择卡密'}), 400
+    
+    cards = Card.query.filter(Card.id.in_(card_ids)).all()
+    count = len(cards)
+    
+    for card in cards:
+        db.session.delete(card)
+    
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': f'成功删除 {count} 个卡密'})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3019, debug=False)
