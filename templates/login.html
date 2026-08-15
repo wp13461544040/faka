@@ -31,8 +31,14 @@
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('error');
+            const button = document.querySelector('button');
             
             errorDiv.classList.add('hidden');
+            
+            // 按钮loading状态
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '登录中...';
             
             try {
                 const response = await fetch('/july', {
@@ -44,6 +50,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '登录成功';
                     window.location.href = '/admin';
                 } else {
                     errorDiv.textContent = data.message;
@@ -52,6 +59,9 @@
             } catch (error) {
                 errorDiv.textContent = '登录失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         

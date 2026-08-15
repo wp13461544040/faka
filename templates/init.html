@@ -30,6 +30,7 @@
             const confirmPassword = document.getElementById('confirmPassword').value;
             const errorDiv = document.getElementById('error');
             const successDiv = document.getElementById('success');
+            const button = document.querySelector('button');
             
             errorDiv.classList.add('hidden');
             successDiv.classList.add('hidden');
@@ -39,6 +40,11 @@
                 errorDiv.classList.remove('hidden');
                 return;
             }
+            
+            // 按钮loading状态
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '创建中...';
             
             try {
                 const response = await fetch('/init', {
@@ -54,6 +60,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '创建成功';
                     successDiv.textContent = '管理员创建成功! 3秒后跳转登录页...';
                     successDiv.classList.remove('hidden');
                     setTimeout(() => {
@@ -62,10 +69,14 @@
                 } else {
                     errorDiv.textContent = data.message;
                     errorDiv.classList.remove('hidden');
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 errorDiv.textContent = '创建失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         

@@ -98,9 +98,27 @@
             </div>
             
             <div class="copy-template-section">
-                <label>📋 复制模板:</label>
-                <input type="text" id="copyTemplate" 
-                       placeholder="使用{key}作为卡密占位符" />
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <label style="margin: 0;">📋 复制模板:</label>
+                    <div>
+                        <button onclick="addTemplate()" class="btn-template">➕ 新增模板</button>
+                        <button onclick="deleteTemplate()" class="btn-template" style="background: #f44336;">🗑️ 删除当前</button>
+                    </div>
+                </div>
+                
+                <select id="templateSelect" onchange="switchTemplate()" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                </select>
+                
+                <input type="text" id="templateName" 
+                       placeholder="模板名称" 
+                       style="margin-bottom: 10px;"
+                       onchange="saveCurrentTemplate()" />
+                
+                <textarea id="copyTemplate" 
+                       placeholder="使用{key}作为卡密占位符" 
+                       rows="3"
+                       style="resize: vertical;"
+                       onchange="saveCurrentTemplate()"></textarea>
                 <small>使用 {key} 占位卡密, <strong>&#10;</strong> 或 <strong>\n</strong> 表示换行</small>
             </div>
             
@@ -121,7 +139,7 @@
                     <tr class="card-row {% if card.is_used %}row-used{% endif %}" 
                         data-status="{{ 'used' if card.is_used else 'unused' }}"
                         data-listed="{{ 'listed' if card.is_listed else 'unlisted' }}">
-                        <td><input type="checkbox" class="card-checkbox" data-id="{{ card.id }}" data-key="{{ card.card_key }}" {% if card.is_used %}disabled{% endif %}></td>
+                        <td><input type="checkbox" class="card-checkbox" data-id="{{ card.id }}" data-key="{{ card.card_key }}"></td>
                         <td><code class="card-key">{{ card.card_key }}</code></td>
                         <td class="card-content" title="{{ card.content }}">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
                         <td>
@@ -140,10 +158,16 @@
                         </td>
                         <td>{{ card.used_at | format_time }}</td>
                         <td>
-                            <button onclick="toggleStatus({{ card.id }})" class="btn-toggle" {% if card.is_used %}disabled{% endif %}>
-                                {% if card.is_listed %}下架{% else %}上架{% endif %}
+                            <button onclick="toggleStatus({{ card.id }})" class="btn-toggle">
+                                {% if card.is_used and not card.is_listed %}
+                                🔄 重新上架
+                                {% elif card.is_listed %}
+                                下架
+                                {% else %}
+                                上架
+                                {% endif %}
                             </button>
-                            <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small" {% if card.is_used %}disabled{% endif %}>复制卡密</button>
+                            <button onclick="copySingle('{{ card.card_key }}')" class="btn-copy-small">复制卡密</button>
                             <button onclick="copyContent({{ card.id }}, `{{ card.content|replace('`', '\\`')|replace('\\', '\\\\')|replace('\n', '\\n')|replace('\r', '') }}`)" class="btn-copy-small">复制内容</button>
                             <button onclick="deleteCard({{ card.id }})" class="btn-delete">删除</button>
                         </td>
@@ -209,23 +233,146 @@
 
     <script>
         let currentKeys = [];
+        let templates = [];
+        let currentTemplateIndex = 0;
         
-        // 页面加载时恢复模板
+        // 默认模板
+        const defaultTemplates = [
+            {
+                name: '默认模板',
+                content: '卡密：{key}\n兑换地址：http://127.0.0.1:3019'
+            },
+            {
+                name: '简洁模板',
+                content: '{key}'
+            },
+            {
+                name: '详细模板',
+                content: '=================\n卡密：{key}\n使用说明：访问网站输入卡密即可兑换\n兑换地址：http://127.0.0.1:3019\n================='
+            }
+        ];
+        
+        // 初始化模板
+        function initTemplates() {
+            const savedTemplates = localStorage.getItem('copyTemplates');
+            if (savedTemplates) {
+                try {
+                    templates = JSON.parse(savedTemplates);
+                } catch (e) {
+                    templates = [...defaultTemplates];
+                }
+            } else {
+                templates = [...defaultTemplates];
+            }
+            
+            const savedIndex = localStorage.getItem('currentTemplateIndex');
+            currentTemplateIndex = savedIndex ? parseInt(savedIndex) : 0;
+            
+            if (currentTemplateIndex >= templates.length) {
+                currentTemplateIndex = 0;
+            }
+            
+            updateTemplateSelect();
+            loadCurrentTemplate();
+        }
+        
+        // 更新下拉选择框
+        function updateTemplateSelect() {
+            const select = document.getElementById('templateSelect');
+            select.innerHTML = '';
+            
+            templates.forEach((template, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = template.name;
+                if (index === currentTemplateIndex) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+        
+        // 加载当前模板
+        function loadCurrentTemplate() {
+            if (templates.length === 0) return;
+            
+            const template = templates[currentTemplateIndex];
+            document.getElementById('templateName').value = template.name;
+            document.getElementById('copyTemplate').value = template.content;
+        }
+        
+        // 切换模板
+        function switchTemplate() {
+            const select = document.getElementById('templateSelect');
+            currentTemplateIndex = parseInt(select.value);
+            localStorage.setItem('currentTemplateIndex', currentTemplateIndex);
+            loadCurrentTemplate();
+        }
+        
+        // 保存当前模板
+        function saveCurrentTemplate() {
+            if (templates.length === 0) return;
+            
+            const name = document.getElementById('templateName').value.trim();
+            const content = document.getElementById('copyTemplate').value;
+            
+            if (!name) {
+                alert('请输入模板名称');
+                loadCurrentTemplate();
+                return;
+            }
+            
+            templates[currentTemplateIndex] = { name, content };
+            localStorage.setItem('copyTemplates', JSON.stringify(templates));
+            updateTemplateSelect();
+        }
+        
+        // 新增模板
+        function addTemplate() {
+            const name = prompt('请输入新模板名称:', '新模板');
+            if (!name || !name.trim()) return;
+            
+            const newTemplate = {
+                name: name.trim(),
+                content: '卡密：{key}'
+            };
+            
+            templates.push(newTemplate);
+            currentTemplateIndex = templates.length - 1;
+            
+            localStorage.setItem('copyTemplates', JSON.stringify(templates));
+            localStorage.setItem('currentTemplateIndex', currentTemplateIndex);
+            
+            updateTemplateSelect();
+            loadCurrentTemplate();
+        }
+        
+        // 删除模板
+        function deleteTemplate() {
+            if (templates.length <= 1) {
+                alert('至少保留一个模板');
+                return;
+            }
+            
+            const template = templates[currentTemplateIndex];
+            if (!confirm(`确定删除模板 "${template.name}" 吗？`)) return;
+            
+            templates.splice(currentTemplateIndex, 1);
+            
+            if (currentTemplateIndex >= templates.length) {
+                currentTemplateIndex = templates.length - 1;
+            }
+            
+            localStorage.setItem('copyTemplates', JSON.stringify(templates));
+            localStorage.setItem('currentTemplateIndex', currentTemplateIndex);
+            
+            updateTemplateSelect();
+            loadCurrentTemplate();
+        }
+        
+        // 页面加载时初始化
         window.addEventListener('DOMContentLoaded', function() {
-            const savedTemplate = localStorage.getItem('copyTemplate');
-            const defaultTemplate = '卡密：{key}\n兑换地址：http://127.0.0.1:3019';
-            document.getElementById('copyTemplate').value = savedTemplate || defaultTemplate;
-        });
-        
-        // 模板输入框失焦时保存
-        document.addEventListener('DOMContentLoaded', function() {
-            const templateInput = document.getElementById('copyTemplate');
-            templateInput.addEventListener('blur', function() {
-                localStorage.setItem('copyTemplate', this.value);
-            });
-            templateInput.addEventListener('change', function() {
-                localStorage.setItem('copyTemplate', this.value);
-            });
+            initTemplates();
         });
         
         function toggleContent() {
@@ -237,6 +384,12 @@
         document.getElementById('createForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const formData = new FormData(this);
+            const button = this.querySelector('button[type="submit"]');
+            
+            // 按钮loading状态
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '生成中...';
             
             try {
                 const response = await fetch('/api/create_batch', {
@@ -249,6 +402,7 @@
                 if (data.success) {
                     currentKeys = data.cards.map(c => c.key);
                     
+                    button.textContent = '✅ 生成成功';
                     document.getElementById('totalCount').textContent = data.total;
                     document.getElementById('keysPreview').textContent = currentKeys.join('\n');
                     document.getElementById('createResult').classList.remove('hidden');
@@ -256,9 +410,13 @@
                     setTimeout(() => location.reload(), 3000);
                 } else {
                     alert('生成失败: ' + data.message);
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 alert('生成失败: ' + error.message);
+                button.disabled = false;
+                button.textContent = originalText;
             }
         });
         
@@ -288,7 +446,7 @@
         }
         
         function toggleAllCards(checkbox) {
-            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
+            const checkboxes = document.querySelectorAll('.card-checkbox');
             checkboxes.forEach(cb => cb.checked = checkbox.checked);
         }
         
@@ -359,33 +517,67 @@
                 return;
             }
             
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '复制中...';
+            
             const keys = Array.from(checkboxes).map(cb => cb.dataset.key);
             const text = keys.map(key => formatCard(key)).join('\n\n');
             
             await copyToClipboard(text);
+            
+            button.textContent = '✅ 已复制';
             const successDiv = document.getElementById('copySuccess');
             successDiv.classList.remove('hidden');
-            setTimeout(() => successDiv.classList.add('hidden'), 2000);
+            
+            setTimeout(() => {
+                successDiv.classList.add('hidden');
+                button.disabled = false;
+                button.textContent = originalText;
+            }, 2000);
         }
         
         async function copyAllUnused() {
-            const checkboxes = document.querySelectorAll('.card-checkbox:not([disabled])');
-            if (checkboxes.length === 0) {
+            const checkboxes = document.querySelectorAll('.card-checkbox');
+            const unusedCheckboxes = Array.from(checkboxes).filter(cb => {
+                const row = cb.closest('tr');
+                return row.dataset.status === 'unused';
+            });
+            
+            if (unusedCheckboxes.length === 0) {
                 alert('没有未使用的卡密');
                 return;
             }
             
-            const keys = Array.from(checkboxes).map(cb => cb.dataset.key);
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '复制中...';
+            
+            const keys = unusedCheckboxes.map(cb => cb.dataset.key);
             const text = keys.map(key => formatCard(key)).join('\n\n');
             
             await copyToClipboard(text);
+            
+            button.textContent = '✅ 已复制';
             const successDiv = document.getElementById('copySuccess');
             successDiv.classList.remove('hidden');
-            setTimeout(() => successDiv.classList.add('hidden'), 2000);
+            
+            setTimeout(() => {
+                successDiv.classList.add('hidden');
+                button.disabled = false;
+                button.textContent = originalText;
+            }, 2000);
         }
         
         async function deleteCard(cardId) {
             if (!confirm('确定要删除这个卡密吗?')) return;
+            
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '删除中...';
             
             try {
                 const response = await fetch(`/api/delete_card/${cardId}`, {
@@ -395,16 +587,26 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '已删除';
                     location.reload();
                 } else {
                     alert('删除失败: ' + data.message);
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 alert('删除失败: ' + error.message);
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         
         async function toggleStatus(cardId) {
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '处理中...';
+            
             try {
                 const response = await fetch(`/api/toggle_card_status/${cardId}`, {
                     method: 'POST'
@@ -413,12 +615,17 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '已完成';
                     location.reload();
                 } else {
                     alert('操作失败: ' + data.message);
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 alert('操作失败: ' + error.message);
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         
@@ -434,6 +641,11 @@
             
             if (!confirm(`确定要${action}选中的 ${cardIds.length} 个卡密吗?`)) return;
             
+            const button = event.target;
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '处理中...';
+            
             try {
                 const response = await fetch('/api/batch_toggle_status', {
                     method: 'POST',
@@ -444,13 +656,18 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '✅ 完成';
                     alert(data.message);
                     location.reload();
                 } else {
                     alert('操作失败: ' + data.message);
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 alert('操作失败: ' + error.message);
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         
@@ -469,9 +686,14 @@
             const password = document.getElementById('usernamePassword').value;
             const errorDiv = document.getElementById('settingsError');
             const successDiv = document.getElementById('settingsSuccess');
+            const button = event.target;
             
             errorDiv.classList.add('hidden');
             successDiv.classList.add('hidden');
+            
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '修改中...';
             
             try {
                 const response = await fetch('/api/change_username', {
@@ -483,16 +705,21 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '✅ 成功';
                     successDiv.textContent = data.message + ' 3秒后重新登录...';
                     successDiv.classList.remove('hidden');
                     setTimeout(() => window.location.href = '/logout', 3000);
                 } else {
                     errorDiv.textContent = data.message;
                     errorDiv.classList.remove('hidden');
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 errorDiv.textContent = '修改失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
         
@@ -502,9 +729,14 @@
             const confirmNewPassword = document.getElementById('confirmNewPassword').value;
             const errorDiv = document.getElementById('settingsError');
             const successDiv = document.getElementById('settingsSuccess');
+            const button = event.target;
             
             errorDiv.classList.add('hidden');
             successDiv.classList.add('hidden');
+            
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '修改中...';
             
             try {
                 const response = await fetch('/api/change_password', {
@@ -520,16 +752,21 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    button.textContent = '✅ 成功';
                     successDiv.textContent = data.message + ' 3秒后重新登录...';
                     successDiv.classList.remove('hidden');
                     setTimeout(() => window.location.href = '/logout', 3000);
                 } else {
                     errorDiv.textContent = data.message;
                     errorDiv.classList.remove('hidden');
+                    button.disabled = false;
+                    button.textContent = originalText;
                 }
             } catch (error) {
                 errorDiv.textContent = '修改失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
     </script>

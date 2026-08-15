@@ -24,11 +24,37 @@
     </div>
 
     <script>
-        async function useCard() {
+        // 防抖函数
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // 节流函数
+        function throttle(func, limit) {
+            let inThrottle;
+            return function(...args) {
+                if (!inThrottle) {
+                    func.apply(this, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            };
+        }
+
+        async function useCardRaw() {
             const cardKey = document.getElementById('cardKey').value.trim();
             const resultDiv = document.getElementById('result');
             const errorDiv = document.getElementById('error');
             const contentPre = document.getElementById('content');
+            const button = document.querySelector('button');
             
             resultDiv.classList.add('hidden');
             errorDiv.classList.add('hidden');
@@ -38,6 +64,10 @@
                 errorDiv.classList.remove('hidden');
                 return;
             }
+            
+            // 禁用按钮防止重复点击
+            button.disabled = true;
+            button.textContent = '提取中...';
             
             try {
                 const response = await fetch('/api/use_card', {
@@ -52,6 +82,20 @@
                     contentPre.textContent = typeof data.content === 'object' 
                         ? JSON.stringify(data.content, null, 2) 
                         : data.content;
+                    
+                    // 显示使用次数信息
+                    const usageInfo = document.createElement('p');
+                    usageInfo.style.marginTop = '10px';
+                    usageInfo.style.color = '#666';
+                    usageInfo.style.fontSize = '14px';
+                    usageInfo.innerHTML = `<strong>已使用 ${data.used_count}/${data.max_use_count} 次</strong>` +
+                        (data.remaining > 0 ? ` | 剩余 ${data.remaining} 次` : ' | 已达使用上限');
+                    
+                    // 移除旧的使用信息
+                    const oldInfo = resultDiv.querySelector('p');
+                    if (oldInfo) oldInfo.remove();
+                    
+                    resultDiv.appendChild(usageInfo);
                     resultDiv.classList.remove('hidden');
                 } else {
                     errorDiv.textContent = data.message;
@@ -60,8 +104,15 @@
             } catch (error) {
                 errorDiv.textContent = '请求失败: ' + error.message;
                 errorDiv.classList.remove('hidden');
+            } finally {
+                // 恢复按钮状态
+                button.disabled = false;
+                button.textContent = '提取';
             }
         }
+        
+        // 使用节流(1秒内只能点击一次)
+        const useCard = throttle(useCardRaw, 1000);
         
         document.getElementById('cardKey').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') useCard();

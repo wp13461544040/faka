@@ -1,44 +1,15 @@
-# 国内优化版Dockerfile - 使用国内镜像加速
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 WORKDIR /app
 
-# 配置apt使用阿里云镜像
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources && \
-    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
+# 使用中国镜像源
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 安装必要工具
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl tzdata && \
-    rm -rf /var/lib/apt/lists/*
-
-# 设置时区
-ENV TZ=Asia/Shanghai
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-# 配置pip使用阿里云镜像
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set install.trusted-host mirrors.aliyun.com
-
-# 复制依赖文件
 COPY requirements.txt .
-
-# 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码
 COPY . .
 
-# 创建必要目录
-RUN mkdir -p instance uploads && \
-    chmod -R 755 instance uploads
-
-# 暴露端口
 EXPOSE 3019
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3019 || exit 1
-
-# 启动应用
 CMD ["python", "app.py"]

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -19,7 +19,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'  # 这里要用函数名不是路由
+login_manager.login_view = 'login'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -57,22 +57,14 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
-class CardBatch(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, default=get_beijing_time)
-    created_by = db.Column(db.Integer, db.ForeignKey('user.id'))
-    total_cards = db.Column(db.Integer, default=0)
-    used_cards = db.Column(db.Integer, default=0)
-    description = db.Column(db.String(200))  # 批次描述
-
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    batch_id = db.Column(db.Integer, db.ForeignKey('card_batch.id'))
     card_key = db.Column(db.String(32), unique=True, nullable=False)
     content = db.Column(db.Text, nullable=False)
     is_used = db.Column(db.Boolean, default=False)
-    is_listed = db.Column(db.Boolean, default=True)  # 新增:是否上架
+    is_listed = db.Column(db.Boolean, default=True)
+    used_count = db.Column(db.Integer, default=0)
+    max_use_count = db.Column(db.Integer, default=3)
     used_at = db.Column(db.DateTime)
     used_by_ip = db.Column(db.String(50))
 
@@ -152,7 +144,6 @@ def logout():
 @login_required
 def admin():
     if not current_user.is_admin:
-        flash('无权限访问')
         return redirect(url_for('index'))
     
     # 直接获取所有卡密,按创建时间倒序
@@ -219,20 +210,18 @@ def create_batch():
     if not content_list:
         return jsonify({'success': False, 'message': '内容为空'}), 400
     
-    # 直接生成卡密,不创建批次
+    # 生成卡密
     for content in content_list:
         # 生成唯一卡密
         while True:
             card_key = generate_card_key()
-            # 检查是否重复
             if not Card.query.filter_by(card_key=card_key).first():
                 break
         
         card = Card(
-            batch_id=None,  # 不需要批次ID
             card_key=card_key,
             content=content,
-            is_listed=False  # 默认下架
+            is_listed=False
         )
         db.session.add(card)
         cards_data.append({'key': card_key, 'content': content})
@@ -258,18 +247,25 @@ def use_card():
     if not card.is_listed:
         return jsonify({'success': False, 'message': '该卡密未上架,暂不可用'}), 400
     
-    if card.is_used:
-        # 格式化时间为东八区显示
+    # 检查使用次数
+    if card.used_count >= card.max_use_count:
         used_time = card.used_at.strftime('%Y-%m-%d %H:%M:%S') if card.used_at else '未知'
         return jsonify({
             'success': False,
-            'message': f'卡密已被使用 (使用时间: {used_time})'
+            'message': f'卡密已达最大使用次数 ({card.max_use_count}次) (首次使用时间: {used_time})'
         }), 400
     
-    # 标记为已使用
-    card.is_used = True
-    card.used_at = get_beijing_time()
-    card.used_by_ip = request.remote_addr
+    # 增加使用次数
+    card.used_count += 1
+    
+    # 首次使用时记录时间
+    if card.used_count == 1:
+        card.used_at = get_beijing_time()
+        card.used_by_ip = request.remote_addr
+    
+    # 达到最大次数时标记为已使用
+    if card.used_count >= card.max_use_count:
+        card.is_used = True
     
     db.session.commit()
     
@@ -279,9 +275,14 @@ def use_card():
     except:
         content_data = card.content
     
+    remaining = card.max_use_count - card.used_count
+    
     return jsonify({
         'success': True,
-        'content': content_data
+        'content': content_data,
+        'used_count': card.used_count,
+        'max_use_count': card.max_use_count,
+        'remaining': remaining
     })
 
 @app.route('/api/export_cards')
@@ -382,10 +383,22 @@ def toggle_card_status(card_id):
     if not card:
         return jsonify({'success': False, 'message': '卡密不存在'}), 404
     
-    card.is_listed = not card.is_listed
+    # 如果卡密已使用，上架操作会重置使用状态
+    if card.is_used and not card.is_listed:
+        # 重置使用状态
+        card.is_used = False
+        card.used_count = 0
+        card.used_at = None
+        card.used_by_ip = None
+        card.is_listed = True
+        status_text = '已重新上架并重置使用状态'
+    else:
+        # 正常切换上架状态
+        card.is_listed = not card.is_listed
+        status_text = '已上架' if card.is_listed else '已下架'
+    
     db.session.commit()
     
-    status_text = '已上架' if card.is_listed else '已下架'
     return jsonify({'success': True, 'message': f'卡密{status_text}', 'is_listed': card.is_listed})
 
 @app.route('/api/batch_toggle_status', methods=['POST'])
@@ -401,11 +414,29 @@ def batch_toggle_status():
     if not card_ids:
         return jsonify({'success': False, 'message': '未选择卡密'}), 400
     
-    Card.query.filter(Card.id.in_(card_ids)).update({'is_listed': is_listed}, synchronize_session=False)
+    cards = Card.query.filter(Card.id.in_(card_ids)).all()
+    
+    reset_count = 0
+    for card in cards:
+        # 如果是已使用的卡密且要上架，重置使用状态
+        if card.is_used and is_listed:
+            card.is_used = False
+            card.used_count = 0
+            card.used_at = None
+            card.used_by_ip = None
+            card.is_listed = True
+            reset_count += 1
+        else:
+            card.is_listed = is_listed
+    
     db.session.commit()
     
     status_text = '上架' if is_listed else '下架'
-    return jsonify({'success': True, 'message': f'成功{status_text} {len(card_ids)} 个卡密'})
+    message = f'成功{status_text} {len(cards)} 个卡密'
+    if reset_count > 0:
+        message += f'，其中 {reset_count} 个已使用卡密已重置'
+    
+    return jsonify({'success': True, 'message': message})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3019, debug=False)

@@ -8,12 +8,13 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    padding: 20px;
+    padding: 15px 10px;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
+    padding: 0 15px;
 }
 
 .header {
@@ -124,10 +125,27 @@ button:active {
     font-size: 14px;
     cursor: pointer;
     transition: background 0.2s;
+    margin-left: 5px;
 }
 
 .btn-template:hover {
     background: #45a049;
+}
+
+textarea {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .result {
@@ -337,15 +355,11 @@ button:active {
     border-radius: 5px;
     cursor: pointer;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
-.btn-toggle:hover:not([disabled]) {
+.btn-toggle:hover {
     background: #f57c00;
-}
-
-.btn-toggle[disabled] {
-    background: #ccc;
-    cursor: not-allowed;
 }
 
 .btn-copy {
@@ -372,10 +386,6 @@ button:active {
     width: 18px;
     height: 18px;
     cursor: pointer;
-}
-
-.card-checkbox[disabled] {
-    cursor: not-allowed;
 }
 
 .stats-cards {
@@ -481,13 +491,8 @@ button:active {
     cursor: pointer;
 }
 
-.btn-copy-small:hover:not([disabled]) {
+.btn-copy-small:hover {
     background: #1976d2;
-}
-
-.btn-copy-small[disabled] {
-    background: #ccc;
-    cursor: not-allowed;
 }
 
 .btn-delete {
@@ -668,6 +673,14 @@ pre {
 }
 
 @media (max-width: 768px) {
+    body {
+        padding: 10px 5px;
+    }
+    
+    .container {
+        padding: 0 5px;
+    }
+    
     h1 {
         font-size: 1.8em;
     }
