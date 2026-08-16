@@ -75,6 +75,12 @@ def load_user(user_id):
 # 初始化数据库
 with app.app_context():
     db.create_all()
+    # 兼容旧数据：used_count > 0 的卡密标记为已使用
+    fixed = Card.query.filter(Card.used_count > 0, Card.is_used == False).all()
+    for card in fixed:
+        card.is_used = True
+    if fixed:
+        db.session.commit()
 
 # 路由
 @app.route('/')
@@ -263,9 +269,8 @@ def use_card():
         card.used_at = get_beijing_time()
         card.used_by_ip = request.remote_addr
     
-    # 达到最大次数时标记为已使用
-    if card.used_count >= card.max_use_count:
-        card.is_used = True
+    # 提取一次即标记为已使用
+    card.is_used = True
     
     db.session.commit()
     

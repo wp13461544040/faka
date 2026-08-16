@@ -157,9 +157,9 @@
                         <td class="card-content" title="{{ card.content }}">{{ card.content[:50] }}{% if card.content|length > 50 %}...{% endif %}</td>
                         <td>
                             {% if card.is_used %}
-                            <span class="status-used">已使用</span>
+                            <span class="status-used">已使用 {{ card.used_count }}/{{ card.max_use_count }}</span>
                             {% else %}
-                            <span class="status-unused">未使用</span>
+                            <span class="status-unused">未使用 {{ card.used_count }}/{{ card.max_use_count }}</span>
                             {% endif %}
                         </td>
                         <td>
@@ -447,13 +447,12 @@
             const rows = document.querySelectorAll('.card-row');
             
             rows.forEach(row => {
-                const matchStatus = filter === 'all' || row.dataset.status === filter;
-                const matchListed = filter === 'all' || row.dataset.listed === filter;
-                
-                if (filter === 'all' || filter === 'unused' || filter === 'used') {
-                    row.style.display = matchStatus ? '' : 'none';
+                if (filter === 'all') {
+                    row.style.display = '';
+                } else if (filter === 'listed' || filter === 'unlisted') {
+                    row.style.display = row.dataset.listed === filter ? '' : 'none';
                 } else {
-                    row.style.display = matchListed ? '' : 'none';
+                    row.style.display = row.dataset.status === filter ? '' : 'none';
                 }
             });
         }
