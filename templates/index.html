@@ -10,12 +10,20 @@
     <div class="container">
         <h1>🎫 卡密提取系统</h1>
         <div class="card">
+            <div class="notice-box">
+                <strong>⚠️ 重要提示：</strong>请及时保存账号密码，提取成功后，将在6小时后清除数据
+            </div>
+            
             <h2>提取卡密内容</h2>
             <input type="text" id="cardKey" placeholder="请输入卡密" />
             <button onclick="useCard()">提取</button>
             
             <div id="result" class="result hidden">
                 <h3>提取结果:</h3>
+                <div id="contentActions" class="content-actions hidden">
+                    <button onclick="copyAll()" class="btn-copy-all">📋 一键复制</button>
+                </div>
+                <div id="copyToast" class="copy-toast hidden">✅ 复制成功！</div>
                 <pre id="content"></pre>
             </div>
             
@@ -54,10 +62,12 @@
             const resultDiv = document.getElementById('result');
             const errorDiv = document.getElementById('error');
             const contentPre = document.getElementById('content');
+            const contentActions = document.getElementById('contentActions');
             const button = document.querySelector('button');
             
             resultDiv.classList.add('hidden');
             errorDiv.classList.add('hidden');
+            contentActions.classList.add('hidden');
             
             if (!cardKey) {
                 errorDiv.textContent = '请输入卡密';
@@ -79,9 +89,15 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    // 保存内容数据供复制功能使用
+                    window.cardContent = data.content;
+                    
                     contentPre.textContent = typeof data.content === 'object' 
                         ? JSON.stringify(data.content, null, 2) 
                         : data.content;
+                    
+                    // 显示一键复制按钮
+                    contentActions.classList.remove('hidden');
                     
                     // 显示使用次数信息
                     const usageInfo = document.createElement('p');
@@ -109,6 +125,58 @@
                 button.disabled = false;
                 button.textContent = '提取';
             }
+        }
+        
+        // 复制到剪贴板
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                return true;
+            }
+        }
+        
+        // 一键复制全部内容
+        async function copyAll() {
+            const contentPre = document.getElementById('content');
+            const toast = document.getElementById('copyToast');
+            
+            await copyToClipboard(contentPre.textContent);
+            
+            // 显示提示
+            toast.classList.remove('hidden');
+            toast.classList.add('show');
+            
+            // 按钮状态
+            showCopySuccess(event.target, '复制成功');
+            
+            // 2秒后隐藏提示
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 300);
+            }, 2000);
+        }
+        
+        // 显示复制成功提示
+        function showCopySuccess(button, message) {
+            const originalText = button.textContent;
+            button.textContent = '✅ ' + message;
+            button.disabled = true;
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.disabled = false;
+            }, 1500);
         }
         
         // 使用节流(1秒内只能点击一次)

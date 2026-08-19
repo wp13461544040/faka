@@ -203,6 +203,101 @@ textarea:focus {
     opacity: 0.9;
 }
 
+.notice-box {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    color: #856404;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.notice-box strong {
+    color: #d32f2f;
+    font-size: 15px;
+}
+
+.content-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.btn-copy-all {
+    width: 100%;
+    padding: 12px 20px;
+    font-size: 16px;
+    background: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-copy-all:hover:not(:disabled) {
+    background: #1976d2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+}
+
+.btn-copy-all:disabled {
+    background: #4caf50;
+    cursor: not-allowed;
+}
+
+.copy-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: #4caf50;
+    color: white;
+    padding: 20px 40px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.copy-toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.btn-copy-field {
+    padding: 8px 16px;
+    font-size: 14px;
+    background: #2196f3;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    flex: 1;
+    min-width: 100px;
+}
+
+.btn-copy-field:hover:not(:disabled) {
+    background: #1976d2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.btn-copy-field:disabled {
+    background: #4caf50;
+    cursor: not-allowed;
+}
+
 .init-tip {
     background: #e3f2fd;
     padding: 15px;
